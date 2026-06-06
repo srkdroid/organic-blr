@@ -1,0 +1,149 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "▶ Next.js dev server",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🗄 DB: Run migrations",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/db/migrate.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "✅ Run tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/tests/run.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Scrape ALL + save",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scheduler/runAll.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: Organic Mandya (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/organicMandya.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: Organic Mandya",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/organicMandya.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: Lushful (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/lushful.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: Lushful",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/lushful.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: Farm Fresh (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/farmFresh.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: Farm Fresh",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/farmFresh.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: Healthy Buddha (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/healthyBuddha.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: Healthy Buddha",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/healthyBuddha.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: Akshayakalpa (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/akshayakalpa.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: Akshayakalpa",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/akshayakalpa.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🕷 Preview: GreenDNA (no save)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/greenDNA.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "💾 Scrape + Save: GreenDNA",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scrapers/greenDNA.js",
+      "args": ["--save"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "⏰ Start cron scheduler",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/scheduler/cron.js",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+scraper/.env.scraper
+
+# Logs
+logs/
+*.log
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+{
+  "name": "Organic Bangalore",
+  "short_name": "OrganicBLR",
+  "description": "Compare organic produce prices across 6 Bangalore providers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

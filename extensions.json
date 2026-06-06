@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "dsznajder.es7-react-js-snippets",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    "ms-vscode.vscode-node-azure-pack"
+  ]
+}
