@@ -113,8 +113,15 @@ async function saveOneScraper(providerId, rawProducts) {
       const normUnit = (p.unit || "").toLowerCase().replace(/\s+/g, "");
       const key = `${p.providerId}:${p.masterItemId}:${normUnit}`;
       const existing = cheapestMap.get(key);
-      if (!existing || p.price < existing.price) {
+      if (!existing) {
         cheapestMap.set(key, p);
+      } else {
+        // Prefer available items. If both same availability, prefer cheaper.
+        const preferAvailable = p.available && !existing.available;
+        const preferCheaper = (p.available === existing.available) && (p.price < existing.price);
+        if (preferAvailable || preferCheaper) {
+          cheapestMap.set(key, p);
+        }
       }
     }
 
@@ -124,8 +131,14 @@ async function saveOneScraper(providerId, rawProducts) {
     for (const p of cheapestMap.values()) {
       const key = `${p.providerId}:${p.masterItemId}`;
       const existing = finalMap.get(key);
-      if (!existing || p.price < existing.price) {
+      if (!existing) {
         finalMap.set(key, p);
+      } else {
+        const preferAvailable = p.available && !existing.available;
+        const preferCheaper = (p.available === existing.available) && (p.price < existing.price);
+        if (preferAvailable || preferCheaper) {
+          finalMap.set(key, p);
+        }
       }
     }
 

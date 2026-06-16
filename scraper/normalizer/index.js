@@ -257,6 +257,7 @@ const PRODUCE_DICT = [
       "gourd - bitter",
       "bittergourd",
       "bitter melon",
+      "organic bittergourd"
     ],
   },
   {
@@ -294,6 +295,7 @@ const PRODUCE_DICT = [
       "padavalanga",
       "padwal",
       "gourd - snake",
+      "snakegourd",
     ],
   },
   {
@@ -472,9 +474,11 @@ const PRODUCE_DICT = [
       "chow chow",
       "chayote",
       "seemebadnekai",
+      "seeme badanekai",
       "ishkush",
       "bangalore brinjal",
       "chow chow seemebadnekai",
+      "squash chyote",
     ],
   },
   {
@@ -482,12 +486,16 @@ const PRODUCE_DICT = [
     cat: "Vegetables",
     aliases: [
       "cocinia",
+      "coccinia",
       "tonde",
+      "tondekai",
       "kunduru",
+      "kundru",
       "ivy gourd",
       "tendli",
       "tindora",
       "kovakkai",
+      "little gourd",
     ],
   },
   {
@@ -514,7 +522,7 @@ const PRODUCE_DICT = [
   {
     canonical: "Zucchini",
     cat: "Vegetables",
-    aliases: ["zucchini", "zucchini green", "yellow zucchini", "courgette"],
+    aliases: ["zucchini", "zucchini green", "yellow zucchini", "courgette", "zucchini yellow", "zuchhini"],
   },
   {
     canonical: "Cluster Beans",
@@ -557,6 +565,16 @@ const PRODUCE_DICT = [
     canonical: "Raw Papaya",
     cat: "Vegetables",
     aliases: ["raw papaya", "green papaya", "kacha papita"],
+  },
+  {
+    canonical: "Bajji Chilli",
+    cat: "Vegetables",
+    aliases: ["bajji chilli", "bajji mirchi", "banana pepper", "bhajji chilli"],
+  },
+  {
+    canonical: "Tapioca",
+    cat: "Vegetables",
+    aliases: ["tapioca", "maragenasu", "kappa", "cassava"],
   },
 
   // ── Fruits ──────────────────────────────────────────────────────────────────
@@ -729,6 +747,71 @@ const PRODUCE_DICT = [
     cat: "Fruits",
     aliases: ["tamarind", "imli", "puli"],
   },
+  {
+    canonical: "Kiwi",
+    cat: "Fruits",
+    aliases: ["kiwi", "kiwi fruit", "kiwifruit"],
+  },
+  {
+    canonical: "Blueberry",
+    cat: "Fruits",
+    aliases: ["blueberry", "blueberries"],
+  },
+  {
+    canonical: "Pomelo",
+    cat: "Fruits",
+    aliases: ["pomelo", "pummelo", "chakotha"],
+  },
+  {
+    canonical: "Cherry",
+    cat: "Fruits",
+    aliases: ["cherry", "cherries"],
+  },
+  {
+    canonical: "Apricot",
+    cat: "Fruits",
+    aliases: ["apricot", "apricots"],
+  },
+  {
+    canonical: "Nectarine",
+    cat: "Fruits",
+    aliases: ["nectarine", "nectarin"],
+  },
+  {
+    canonical: "Peach",
+    cat: "Fruits",
+    aliases: ["peach", "peaches"],
+  },
+  {
+    canonical: "Lychee",
+    cat: "Fruits",
+    aliases: ["lychee", "litchi"],
+  },
+  {
+    canonical: "Raspberry",
+    cat: "Fruits",
+    aliases: ["raspberry", "raspberries"],
+  },
+  {
+    canonical: "Mulberry",
+    cat: "Fruits",
+    aliases: ["mulberry", "mulberries"],
+  },
+  {
+    canonical: "Jamun",
+    cat: "Fruits",
+    aliases: ["jamun", "nerale hannu", "kala jamun", "black plum"],
+  },
+  {
+    canonical: "Golden Berry",
+    cat: "Fruits",
+    aliases: ["golden berry", "golden berries", "cape gooseberry"],
+  },
+  {
+    canonical: "Fig",
+    cat: "Fruits",
+    aliases: ["fig", "figs", "diana yellow fig", "turkey brown fig"],
+  },
 
   // ── Leafy Greens ─────────────────────────────────────────────────────────────
   {
@@ -795,9 +878,79 @@ const PRODUCE_DICT = [
     aliases: ["lettuce", "iceberg", "romaine", "salad leaves"],
   },
   {
+    canonical: "Gongura Leaves",
+    cat: "Leafy Greens",
+    aliases: ["gongura", "sorrel leaves", "pulicha keerai", "ambadi", "gongura leaves"],
+  },
+  {
     canonical: "Dill Leaves",
     cat: "Leafy Greens",
     aliases: ["dill", "soa", "suva", "dill leaves", "sabbasige soppu"],
+  },
+  {
+    canonical: "Malabar Spinach",
+    cat: "Leafy Greens",
+    aliases: ["malabar spinach", "basale", "balli basale", "basale soppu"],
+  },
+  {
+    canonical: "Celery",
+    cat: "Leafy Greens",
+    aliases: ["celery", "celery leaves", "celery sticks"],
+  },
+  {
+    canonical: "Bok Choy",
+    cat: "Leafy Greens",
+    aliases: ["bok choy", "pak choi", "baby bok choy"],
+  },
+  {
+    canonical: "Arugula",
+    cat: "Leafy Greens",
+    aliases: ["arugula", "rocket leaves", "rocket"],
+  },
+  {
+    canonical: "Agathi Leaves",
+    cat: "Leafy Greens",
+    aliases: ["agathi", "agase soppu", "agathi keerai", "agathi leaves"],
+  },
+  {
+    canonical: "Ajwain Leaves",
+    cat: "Leafy Greens",
+    aliases: ["ajwain leaves", "dodda pathra", "doddapatra"],
+  },
+  {
+    canonical: "Chakotha Leaves",
+    cat: "Leafy Greens",
+    aliases: ["chakotha leaves", "chakotha soppu", "bathua"],
+  },
+  {
+    canonical: "Kale",
+    cat: "Leafy Greens",
+    aliases: ["kale", "curly kale"],
+  },
+  {
+    canonical: "Mustard Greens",
+    cat: "Leafy Greens",
+    aliases: ["mustard greens", "rai saag", "sarson ka saag"],
+  },
+  {
+    canonical: "Purslane",
+    cat: "Leafy Greens",
+    aliases: ["purslane", "gonni soppu", "kulfa"],
+  },
+  {
+    canonical: "Wheatgrass",
+    cat: "Leafy Greens",
+    aliases: ["wheatgrass", "wheat grass"],
+  },
+  {
+    canonical: "Microgreens",
+    cat: "Leafy Greens",
+    aliases: ["microgreens", "micro greens", "microgreen", "pink raddish", "white raddish", "mustard micro greens", "sunflower shoots"],
+  },
+  {
+    canonical: "Sprouts",
+    cat: "Leafy Greens",
+    aliases: ["sprouts", "sprout", "mixed sprouts"],
   },
 
   // ── Herbs ────────────────────────────────────────────────────────────────────
@@ -851,6 +1004,11 @@ const PRODUCE_DICT = [
       "birds eye chili",
       "bird eye chili",
     ],
+  },
+  {
+    canonical: "Basil",
+    cat: "Herbs",
+    aliases: ["basil", "italian basil", "sweet basil", "tulsi"],
   },
 ];
 

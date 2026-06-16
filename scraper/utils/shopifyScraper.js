@@ -38,7 +38,6 @@ async function fetchCollection(collectionUrl) {
 
 function shopifyProductToItems(shopifyProduct, providerId) {
   const items = []
-
   for (const variant of shopifyProduct.variants) {
     const available = variant.available !== false
     const price     = parseFloat(variant.price)

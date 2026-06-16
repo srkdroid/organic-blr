@@ -23,6 +23,7 @@ const PROVIDER_ID = "OM";
 const COLLECTIONS = [
   "https://organicmandya.com/collections/fruits-vegetables/products.json?limit=250",
   "https://organicmandya.com/collections/fruits/products.json?limit=250",
+  "https://organicmandya.com/collections/exotic/products.json?limit=250",
 ];
 
 async function scrape() {

@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
-import { PROVIDERS, GST_RATE } from '@/lib/providers'
+import { PROVIDERS } from '@/lib/providers'
 
 export function CartDrawer({ open, onClose, cart, onToggle }) {
   const [result,  setResult]  = useState(null)
   const [loading, setLoading] = useState(false)
+  const [activeOpt, setActiveOpt] = useState('single')
 
   const cartItems = useMemo(
     () => Array.from(cart.keys()).map(id => ({ master_item_id: id, quantity: 1 })),
@@ -22,7 +23,13 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
       body:    JSON.stringify({ items: cartItems }),
     })
       .then(r => r.json())
-      .then(setResult)
+      .then(data => {
+        setResult(data)
+        // Reset to single on new data if current active is no longer valid
+        if (data.optimizations && !data.optimizations.find(o => o.id === activeOpt)) {
+          setActiveOpt('single')
+        }
+      })
       .catch(() => setResult(null))
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -36,8 +43,8 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  const totals   = result?.provider_totals || []
-  const cheapest = totals[0]
+  const optimizations = result?.optimizations || []
+  const activeStrategy = optimizations.find(o => o.id === activeOpt) || optimizations[0]
 
   return (
     <>
@@ -108,95 +115,114 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
           </div>
         )}
 
-        {/* Totals */}
+        {/* Optimization & Totals */}
         {cart.size > 0 && (
-          <div className="px-4 py-4 space-y-3">
+          <div className="px-4 py-4 space-y-4">
             {loading && (
               <p className="text-sm text-gray-400 text-center animate-pulse py-4">
-                Calculating…
+                Calculating optimizations…
               </p>
             )}
 
-            {!loading && totals.length === 0 && (
+            {!loading && optimizations.length === 0 && (
               <p className="text-sm text-gray-400 text-center py-4">
                 No price data available for selected items
               </p>
             )}
 
-            {!loading && totals.length > 0 && (
+            {!loading && optimizations.length > 0 && (
               <>
-                {/* Best option highlight */}
-                {cheapest && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                    <p className="text-xs text-emerald-600 font-medium mb-0.5">Cheapest option</p>
-                    <p className="text-2xl font-bold text-emerald-700">
-                      ₹{cheapest.grand_total}
-                      <span className="text-sm font-normal text-emerald-600 ml-1.5">
-                        via {PROVIDERS[cheapest.provider_id]?.name}
-                      </span>
-                    </p>
-                    <p className="text-xs text-emerald-600 mt-0.5">
-                      ₹{cheapest.items_subtotal} items
-                      {cheapest.delivery_applied > 0
-                        ? ` + ₹${cheapest.delivery_applied} delivery`
-                        : ' + free delivery'}
-                      {` + ₹${cheapest.gst_amount} GST (5%)`}
-                    </p>
-                  </div>
-                )}
-
-                {/* All providers */}
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
-                  All providers
-                </h3>
                 <div className="space-y-2">
-                  {totals.map((pt, i) => {
-                    const cfg = PROVIDERS[pt.provider_id]
-                    return (
-                      <div key={pt.provider_id}
-                        className={`rounded-xl border p-3
-                          ${i === 0
-                            ? 'border-emerald-300 bg-emerald-50'
-                            : 'border-gray-100 bg-gray-50'}`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0"
-                                 style={{ backgroundColor: cfg?.color }} />
-                            <span className="text-xs font-medium text-gray-700">
-                              {cfg?.name}
-                            </span>
-                            {i === 0 && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100
-                                               text-emerald-700 rounded-full font-semibold">
-                                Best
-                              </span>
-                            )}
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Delivery Optimization
+                  </h3>
+                  
+                  {/* Strategy Selector */}
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {optimizations.map(opt => {
+                      const isActive = activeOpt === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => setActiveOpt(opt.id)}
+                          className={`flex-shrink-0 text-left p-3 rounded-xl border transition-all ${
+                            isActive 
+                              ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' 
+                              : 'border-gray-200 bg-white hover:border-emerald-300'
+                          }`}
+                        >
+                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                            {opt.label}
                           </div>
-                          <span className="font-bold text-gray-800 tabular-nums">
-                            ₹{pt.grand_total}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-400 flex gap-2 flex-wrap">
-                          <span>Items: ₹{pt.items_subtotal}</span>
-                          <span>
-                            Del: {pt.delivery_applied > 0 ? `₹${pt.delivery_applied}` : 'Free'}
-                          </span>
-                          <span>GST: ₹{pt.gst_amount}</span>
-                        </div>
-                        {pt.items_missing > 0 && (
-                          <p className="text-[10px] text-amber-600 mt-0.5">
-                            ⚠ {pt.items_missing} item{pt.items_missing !== 1 ? 's' : ''} unavailable
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
+                          <div className={`text-lg font-bold ${isActive ? 'text-emerald-700' : 'text-gray-800'}`}>
+                            ₹{opt.grand_total}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-1">
+                            {opt.provider_count} Deliver{opt.provider_count > 1 ? 'ies' : 'y'}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
 
-                <p className="text-[10px] text-gray-400 text-center pt-1">
-                  Totals include 5% GST + applicable delivery charges
-                </p>
+                {/* Active Strategy Breakdown */}
+                {activeStrategy && (
+                  <div className="space-y-3 mt-4 pt-4 border-t border-gray-100">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Order Breakdown
+                    </h3>
+                    
+                    {activeStrategy.providers.map(pt => {
+                      const cfg = PROVIDERS[pt.provider_id]
+                      return (
+                        <div key={pt.provider_id} className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+                          {/* Provider Header */}
+                          <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cfg?.color }} />
+                              <span className="text-sm font-semibold text-gray-800">{cfg?.name}</span>
+                            </div>
+                            <span className="font-bold text-gray-800">₹{pt.grand_total}</span>
+                          </div>
+                          
+                          {/* Items List */}
+                          <div className="px-3 py-2 space-y-1">
+                            {pt.items.map(i => (
+                              <div key={i.master_item_id} className="flex justify-between text-xs text-gray-600">
+                                <span>{i.qty}x {i.name}</span>
+                                <span>₹{i.total}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Subtotals */}
+                          <div className="px-3 py-2 bg-gray-100/50 border-t border-gray-100 text-[10px] text-gray-500 flex justify-between">
+                            <span>Items: ₹{pt.items_subtotal} | Del: {pt.delivery_applied > 0 ? `₹${pt.delivery_applied}` : 'Free'} | GST: ₹{pt.gst_amount}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                {activeStrategy?.unfulfilled_count > 0 && (
+                   <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
+                     <p className="text-xs text-amber-700 font-semibold mb-1">
+                       ⚠ {activeStrategy.unfulfilled_count} item{activeStrategy.unfulfilled_count > 1 ? 's' : ''} unavailable in this combination:
+                     </p>
+                     <ul className="list-disc pl-4 text-[11px] text-amber-600 space-y-0.5">
+                       {activeStrategy.unfulfilled_items?.map((name, idx) => (
+                         <li key={idx}>{name}</li>
+                       ))}
+                     </ul>
+                     {activeStrategy.unfulfilled_count > (activeStrategy.unfulfilled_items?.length || 0) && (
+                       <p className="text-[10px] text-amber-600 mt-1 italic">
+                         *Some providers in this combination may also have failed their minimum order requirement.
+                       </p>
+                     )}
+                   </div>
+                )}
               </>
             )}
           </div>

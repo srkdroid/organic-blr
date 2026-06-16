@@ -1,5 +1,6 @@
 import { getAllItems } from '@/lib/db'
 import { enrichPrices, PROVIDERS, calcDelivery, GST_RATE } from '@/lib/providers'
+import { optimizeCart } from '@/lib/optimizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +60,15 @@ export async function POST(request) {
     })
 
     result.sort((a, b) => a.grand_total - b.grand_total)
-    return Response.json({ cart_items: cartItems.length, provider_totals: result })
+
+    // Run the subset optimization algorithm
+    const optimizations = optimizeCart(cartItems, allItems)
+
+    return Response.json({ 
+      cart_items: cartItems.length, 
+      provider_totals: result,
+      optimizations 
+    })
   } catch (err) {
     console.error('[API /cart]', err.message)
     return Response.json({ error: 'Failed to compute cart total' }, { status: 500 })
