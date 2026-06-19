@@ -100,6 +100,12 @@ CREATE TABLE IF NOT EXISTS providers (
   last_scraped_at     TIMESTAMPTZ,
   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+-- Enable Row Level Security (RLS) to secure tables against public anonymous access via PostgREST
+ALTER TABLE master_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scrape_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE provider_listings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE price_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE providers ENABLE ROW LEVEL SECURITY;
 
 -- Seed provider rows (safe to re-run)
 INSERT INTO providers (id, name, base_url, delivery_charge, free_delivery_above, min_order)

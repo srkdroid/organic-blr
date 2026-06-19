@@ -13,6 +13,7 @@ require("dotenv").config({
   path: path.resolve(__dirname, "../../.env.local"),
   override: false,
 });
+const axios = require("axios");
 
 // Simple concurrency limiter — avoids p-limit ESM compatibility issues
 function pLimit(concurrency) {
@@ -39,6 +40,44 @@ const { logger } = require("../utils/index");
 const { closeBrowser } = require("../utils/browser");
 const db = require("../db/client");
 const { normalise } = require("../normalizer/index");
+
+async function sendNotification(results, durationSecs) {
+  const discordUrl = process.env.DISCORD_WEBHOOK_URL;
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!discordUrl && (!telegramToken || !telegramChatId)) return;
+
+  const total = results.reduce((acc, r) => acc + (r.productsFound || 0), 0);
+  
+  let msg = `🥦 **Scrape Cycle Complete** 🥦\n`;
+  msg += `Duration: ${durationSecs}s\n`;
+  msg += `Total Products: ${total}\n\n`;
+  
+  for (const r of results) {
+    if (r.status === "failed") {
+      msg += `❌ **${r.id}**: FAILED (${r.errorMessage})\n`;
+    } else if (r.status === "partial") {
+      msg += `⚠️ **${r.id}**: 0 products found\n`;
+    } else {
+      msg += `✅ **${r.id}**: ${r.productsFound} products\n`;
+    }
+  }
+
+  try {
+    if (discordUrl) {
+      await axios.post(discordUrl, { content: msg });
+      logger.info("[Scheduler] Discord notification sent");
+    }
+    if (telegramToken && telegramChatId) {
+      const url = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
+      await axios.post(url, { chat_id: telegramChatId, text: msg, parse_mode: "Markdown" });
+      logger.info("[Scheduler] Telegram notification sent");
+    }
+  } catch (err) {
+    logger.error("[Scheduler] Failed to send notification", { error: err.message });
+  }
+}
 
 // Lightweight = no browser (Shopify JSON, Cheerio)
 const LIGHTWEIGHT = [
@@ -69,7 +108,7 @@ async function runScraper({ id, module: mod }, masterItems) {
         productsFound: 0,
         durationMs: Date.now() - startedAt,
       });
-      return;
+      return { id, status: "partial", productsFound: 0 };
     }
 
     // Normalise: map raw names → canonical master items
@@ -118,6 +157,7 @@ async function runScraper({ id, module: mod }, masterItems) {
     logger.info(
       `[Scheduler] ✓ ${id} — ${toSave.length} products saved in ${(duration / 1000).toFixed(1)}s`,
     );
+    return { id, status: "success", productsFound: toSave.length };
   } catch (err) {
     const duration = Date.now() - startedAt;
     logger.error(`[Scheduler] ✗ ${id} failed`, { error: err.message });
@@ -127,6 +167,7 @@ async function runScraper({ id, module: mod }, masterItems) {
       errorMessage: err.message,
       durationMs: duration,
     });
+    return { id, status: "failed", productsFound: 0, errorMessage: err.message };
   }
 }
 
@@ -138,16 +179,19 @@ async function runAll() {
   const masterItems = await db.getMasterItems();
   logger.info(`[Scheduler] Loaded ${masterItems.length} existing master items`);
 
+  const results = [];
+
   // Run lightweight scrapers in parallel (max 3 at once)
   const limit = pLimit(3);
   const lightPromises = LIGHTWEIGHT.map((s) =>
-    limit(() => runScraper(s, masterItems)),
+    limit(() => runScraper(s, masterItems).then(res => { if (res) results.push(res); })),
   );
 
   // Run browser scrapers sequentially (one shared Playwright process)
   const browserPromise = (async () => {
     for (const s of BROWSER_BASED) {
-      await runScraper(s, masterItems);
+      const res = await runScraper(s, masterItems);
+      if (res) results.push(res);
     }
   })();
 
@@ -156,6 +200,8 @@ async function runAll() {
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
   logger.info(`[Scheduler] ════ Cycle complete in ${elapsed}s ════`);
+
+  await sendNotification(results, elapsed);
 }
 
 if (require.main === module) {
