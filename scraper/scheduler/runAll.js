@@ -75,7 +75,8 @@ async function sendNotification(results, durationSecs) {
       logger.info("[Scheduler] Telegram notification sent");
     }
   } catch (err) {
-    logger.error("[Scheduler] Failed to send notification", { error: err.message });
+    const errorDetail = err.response?.data || err.stack || err.message || String(err);
+    logger.error("[Scheduler] Failed to send notification", { error: errorDetail });
   }
 }
 
