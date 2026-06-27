@@ -8,7 +8,11 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
   const [activeOpt, setActiveOpt] = useState('single')
 
   const cartItems = useMemo(
-    () => Array.from(cart.keys()).map(id => ({ master_item_id: id, quantity: 1 })),
+    () => Array.from(cart.entries()).map(([id, item]) => ({
+      master_item_id: id,
+      quantity: 1,
+      unit: item.selectedUnit || null,
+    })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cart.size, Array.from(cart.keys()).join(',')]
   )
@@ -33,7 +37,7 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
       .catch(() => setResult(null))
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartItems.map(i => i.master_item_id).join(',')])
+  }, [cartItems.map(i => `${i.master_item_id}:${i.unit}`).join(',')])
 
   // Close on Escape key
   useEffect(() => {
@@ -103,7 +107,12 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
             {Array.from(cart.values()).map(item => (
               <div key={item.master_item_id}
                    className="flex items-center justify-between py-1.5">
-                <span className="text-sm text-gray-700">{item.canonical_name}</span>
+                <span className="text-sm text-gray-700">
+                  {item.canonical_name}
+                  {item.selectedUnit && (
+                    <span className="text-xs text-gray-400 ml-1">({item.selectedUnit})</span>
+                  )}
+                </span>
                 <button
                   onClick={() => onToggle(item)}
                   className="text-xs text-red-400 hover:text-red-600 ml-3 flex-shrink-0"

@@ -16,7 +16,7 @@
  *     .stock              → "" = in stock
  *
  * Strategy: use reducedPrice (selling price) when available, else price (MRP).
- *           For multi-variant products, keep cheapest selection only.
+ *           For multi-variant products, preserve all selections.
  *
  * Run preview : node scraper/scrapers/farmFresh.js
  * Run + save  : node scraper/scrapers/farmFresh.js --save
@@ -105,9 +105,8 @@ function parseItem(item) {
 
     if (variants.length === 0) return [];
 
-    // Sort by price ascending, keep only the cheapest variant
-    variants.sort((a, b) => (a.price || 9999) - (b.price || 9999));
-    return [variants[0]];
+    // Return ALL variants — multi-unit support
+    return variants;
   }
 
   // No selections — use top-level price fields

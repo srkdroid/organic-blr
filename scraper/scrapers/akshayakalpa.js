@@ -54,39 +54,33 @@ function isOrganicProduce(title) {
 // ── Parse Shopify product → our standard shape ────────────────────────────────
 function parseShopifyProduct(product) {
   const title = (product.title || "").trim();
-  if (!isOrganicProduce(title)) return null;
+  if (!isOrganicProduce(title)) return [];
 
   const variants = product.variants || [];
-  if (variants.length === 0) return null;
+  if (variants.length === 0) return [];
 
-  // Sort variants by price ascending so we always pick the cheapest
-  const sorted = [...variants].sort(
-    (a, b) => parseFloat(a.price || 999) - parseFloat(b.price || 999),
-  );
-  // Prefer cheapest available variant; fall back to cheapest overall
-  const available = sorted.filter((v) => v.available !== false);
-  const pick = available.length > 0 ? available[0] : sorted[0];
+  // Return ALL variants — multi-unit support
+  const items = [];
+  for (const variant of variants) {
+    const price = parseFloat(variant.price);
+    if (!price) continue;
 
-  const price = parseFloat(pick.price);
-  if (!price) return null;
+    const unit =
+      variant.title && variant.title !== "Default Title"
+        ? variant.title
+        : extractUnit(title) || null;
 
-  // Unit from variant title (e.g. "6 pieces", "500g", "1 kg", "1 Bunch")
-  // Ignore "Default Title" — that means no variant/size options
-  // Fallback: try extracting unit from the product title itself
-  const unit =
-    pick.title && pick.title !== "Default Title"
-      ? pick.title
-      : extractUnit(title) || null;
-
-  return buildProduct({
-    providerId: PROVIDER_ID,
-    name: title,
-    price: pick.price,
-    unit,
-    available: pick.available !== false,
-    imageUrl: product.images?.[0]?.src || null,
-    productUrl: `${BASE}/products/${product.handle}`,
-  });
+    items.push(buildProduct({
+      providerId: PROVIDER_ID,
+      name: title,
+      price: variant.price,
+      unit,
+      available: variant.available !== false,
+      imageUrl: product.images?.[0]?.src || null,
+      productUrl: `${BASE}/products/${product.handle}`,
+    }));
+  }
+  return items;
 }
 
 // ── Fetch one paginated Shopify collection ────────────────────────────────────
@@ -112,7 +106,7 @@ async function fetchCollection(collectionUrl) {
 
     for (const product of products) {
       const parsed = parseShopifyProduct(product);
-      if (parsed) allProducts.push(parsed);
+      allProducts.push(...parsed);
     }
 
     logger.debug(
@@ -144,10 +138,10 @@ async function scrape() {
         label: `AK ${url.split("/collections/")[1]?.split("/")[0]}`,
       });
 
-      // Cross-collection dedup by Shopify handle (in productUrl)
+      // Cross-collection dedup by Shopify handle + unit
       let added = 0;
       for (const p of products) {
-        const handle = p.productUrl || p.name;
+        const handle = `${p.productUrl || p.name}|${p.unit || ""}`;
         if (!seenHandles.has(handle)) {
           seenHandles.add(handle);
           allProducts.push(p);

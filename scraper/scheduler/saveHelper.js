@@ -5,11 +5,11 @@
  *
  * KEY DESIGN DECISIONS:
  *
- * 1. UNIQUE(provider_id, master_item_id) in provider_listings means only ONE
- *    price row per provider per canonical item. When HB has "Beans - Cluster"
- *    Rs49, "Beans - Flat" Rs56, "Long Beans" Rs55 — all mapping to master item
- *    "Beans" — we keep the CHEAPEST (Rs49). Others are stored in raw_name but
- *    only the cheapest price shows in the comparison table.
+ * 1. UNIQUE(provider_id, master_item_id, unit) in provider_listings allows
+ *    multiple price rows per provider per canonical item (one per unit variant).
+ *    When HB has "Beans 250g" Rs49, "Beans 500g" Rs89 — both are preserved.
+ *    Stage 1 dedup only collapses true duplicates (same provider+item+unit).
+ *    All unit variants show in the comparison table.
  *
  * 2. All DB operations are batched in chunks of 20 to avoid Supabase free-tier
  *    connection timeouts (which occur with 100+ rapid sequential queries).
@@ -125,24 +125,9 @@ async function saveOneScraper(providerId, rawProducts) {
       }
     }
 
-    // DB has UNIQUE(provider_id, master_item_id) — when multiple units exist
-    // for the same canonical item at the same provider, keep the cheapest unit.
-    const finalMap = new Map();
-    for (const p of cheapestMap.values()) {
-      const key = `${p.providerId}:${p.masterItemId}`;
-      const existing = finalMap.get(key);
-      if (!existing) {
-        finalMap.set(key, p);
-      } else {
-        const preferAvailable = p.available && !existing.available;
-        const preferCheaper = (p.available === existing.available) && (p.price < existing.price);
-        if (preferAvailable || preferCheaper) {
-          finalMap.set(key, p);
-        }
-      }
-    }
-
-    const toSave = Array.from(finalMap.values());
+    // DB has UNIQUE(provider_id, master_item_id, unit) — multiple units
+    // per provider per item are preserved for multi-variant support.
+    const toSave = Array.from(cheapestMap.values());
     const skipped = normalised.length - toSave.length;
     logger.info(
       `[SaveHelper] Saving ${toSave.length} products (${skipped} variants/non-produce skipped)`,

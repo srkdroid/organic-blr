@@ -126,7 +126,7 @@ async function saveListings(products, runId) {
             p.name,
             p.masterName || p.name,
             p.price,
-            p.unit,
+            p.unit || '',
             p.available !== false,
             p.imageUrl || null,
             p.productUrl || null,
@@ -143,7 +143,7 @@ async function saveListings(products, runId) {
               p.providerId,
               p.masterItemId,
               p.price,
-              p.unit,
+              p.unit || '',
               p.available !== false,
             ],
           );

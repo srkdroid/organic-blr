@@ -61,14 +61,14 @@ CREATE TABLE IF NOT EXISTS provider_listings (
   raw_name       VARCHAR(300) NOT NULL,
   canonical_name VARCHAR(200),
   price          NUMERIC(10,2) NOT NULL,
-  unit           VARCHAR(100),
+  unit           VARCHAR(100) NOT NULL DEFAULT '',
   available      BOOLEAN      NOT NULL DEFAULT TRUE,
   image_url      TEXT,
   product_url    TEXT,
   match_method   VARCHAR(30),
   scrape_run_id  INTEGER      REFERENCES scrape_runs(id) ON DELETE CASCADE,
   scraped_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  UNIQUE (provider_id, master_item_id)
+  UNIQUE (provider_id, master_item_id, unit)
 );
 CREATE INDEX IF NOT EXISTS idx_listings_provider    ON provider_listings(provider_id);
 CREATE INDEX IF NOT EXISTS idx_listings_master_item ON provider_listings(master_item_id);
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS price_history (
   provider_id    VARCHAR(10)  NOT NULL,
   master_item_id INTEGER      REFERENCES master_items(id) ON DELETE CASCADE,
   price          NUMERIC(10,2) NOT NULL,
-  unit           VARCHAR(100),
+  unit           VARCHAR(100) NOT NULL DEFAULT '',
   available      BOOLEAN      NOT NULL DEFAULT TRUE,
   scraped_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -123,6 +123,37 @@ ON CONFLICT (id) DO UPDATE SET
   free_delivery_above = EXCLUDED.free_delivery_above,
   min_order           = EXCLUDED.min_order,
   updated_at          = NOW();
+
+-- Triggers to automatically coalesce NULL units to '' (prevents constraint violation from older scrapers)
+CREATE OR REPLACE FUNCTION coalesce_provider_listings_unit()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.unit IS NULL THEN
+    NEW.unit := '';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_coalesce_provider_listings_unit ON provider_listings;
+CREATE TRIGGER trg_coalesce_provider_listings_unit
+BEFORE INSERT OR UPDATE ON provider_listings
+FOR EACH ROW EXECUTE FUNCTION coalesce_provider_listings_unit();
+
+CREATE OR REPLACE FUNCTION coalesce_price_history_unit()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.unit IS NULL THEN
+    NEW.unit := '';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_coalesce_price_history_unit ON price_history;
+CREATE TRIGGER trg_coalesce_price_history_unit
+BEFORE INSERT ON price_history
+FOR EACH ROW EXECUTE FUNCTION coalesce_price_history_unit();
 `;
 
 async function migrate() {

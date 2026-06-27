@@ -44,9 +44,28 @@ export function PriceApp({ initialItems = [], initialProviders = [] }) {
   const toggleCart = useCallback(item => {
     setCart(prev => {
       const next = new Map(prev)
-      next.has(item.master_item_id)
-        ? next.delete(item.master_item_id)
-        : next.set(item.master_item_id, item)
+      if (next.has(item.master_item_id)) {
+        next.delete(item.master_item_id)
+      } else {
+        // Store the item with the selected unit (from PriceTable variant dropdown)
+        next.set(item.master_item_id, {
+          ...item,
+          selectedUnit: item._selectedUnit || null,
+        })
+      }
+      return next
+    })
+  }, [])
+
+  const updateCartUnit = useCallback((masterItemId, unit) => {
+    setCart(prev => {
+      if (!prev.has(masterItemId)) return prev
+      const next = new Map(prev)
+      const existing = next.get(masterItemId)
+      next.set(masterItemId, {
+        ...existing,
+        selectedUnit: unit,
+      })
       return next
     })
   }, [])
@@ -131,7 +150,7 @@ export function PriceApp({ initialItems = [], initialProviders = [] }) {
         {items.length === 0 && !loading ? (
           <EmptyState />
         ) : (
-          <PriceTable items={filtered} cart={cart} onToggle={toggleCart} />
+          <PriceTable items={filtered} cart={cart} onToggle={toggleCart} onUnitChange={updateCartUnit} />
         )}
 
         <p className="text-xs text-center text-gray-400 pb-6">

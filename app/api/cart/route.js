@@ -1,5 +1,5 @@
 import { getAllItems } from '@/lib/db'
-import { enrichPrices, PROVIDERS, calcDelivery, GST_RATE } from '@/lib/providers'
+import { enrichPrices, PROVIDERS, calcDelivery, GST_RATE, getPriceForVariant } from '@/lib/providers'
 import { optimizeCart } from '@/lib/optimizer'
 
 export const dynamic = 'force-dynamic'
@@ -22,23 +22,32 @@ export async function POST(request) {
       if (!item) continue
       const qty = Math.max(1, parseInt(cartItem.quantity) || 1)
 
-      for (const price of item.prices || []) {
-        if (!price.available || !price.price) continue
-        const pid = price.provider_id
-        if (!totals[pid]) {
-          totals[pid] = { provider_id: pid, items_subtotal: 0, items_found: 0, items_missing: 0 }
+      for (const pid of Object.keys(PROVIDERS)) {
+        const providerPrices = (item.prices || []).filter(
+          p => p.provider_id === pid && p.available && p.price
+        )
+        const { price: p } = getPriceForVariant(providerPrices, cartItem.unit)
+        if (p && p.price) {
+          if (!totals[pid]) {
+            totals[pid] = { provider_id: pid, items_subtotal: 0, items_found: 0, items_missing: 0 }
+          }
+          totals[pid].items_subtotal += p.price * qty
+          totals[pid].items_found++
         }
-        totals[pid].items_subtotal += price.price * qty
-        totals[pid].items_found++
       }
     }
 
     // Count items not available per provider
     for (const cartItem of cartItems) {
+      const item = allItems.find(i => i.master_item_id === cartItem.master_item_id)
       for (const pid of Object.keys(totals)) {
-        const item = allItems.find(i => i.master_item_id === cartItem.master_item_id)
-        const has  = item?.prices?.some(p => p.provider_id === pid && p.available)
-        if (!has) totals[pid].items_missing++
+        const providerPrices = (item?.prices || []).filter(
+          p => p.provider_id === pid && p.available && p.price
+        )
+        const { price: p } = getPriceForVariant(providerPrices, cartItem.unit)
+        if (!p) {
+          totals[pid].items_missing++
+        }
       }
     }
 

@@ -59,11 +59,7 @@ function shopifyProductToItems(shopifyProduct, providerId) {
     }))
   }
 
-  // Keep only the cheapest variant per product
-  if (items.length > 1) {
-    items.sort((a, b) => (a.price || 999) - (b.price || 999))
-    return [items[0]]
-  }
+  // Return ALL variants — multi-unit support
 
   return items
 }
