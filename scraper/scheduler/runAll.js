@@ -64,19 +64,25 @@ async function sendNotification(results, durationSecs) {
     }
   }
 
-  try {
-    if (discordUrl) {
+  if (discordUrl) {
+    try {
       await axios.post(discordUrl, { content: msg });
       logger.info("[Scheduler] Discord notification sent");
+    } catch (err) {
+      const errorDetail = err.response?.data || err.message || String(err);
+      logger.error("[Scheduler] Failed to send Discord notification", { error: errorDetail });
     }
-    if (telegramToken && telegramChatId) {
+  }
+
+  if (telegramToken && telegramChatId) {
+    try {
       const url = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
       await axios.post(url, { chat_id: telegramChatId, text: msg, parse_mode: "Markdown" });
       logger.info("[Scheduler] Telegram notification sent");
+    } catch (err) {
+      const errorDetail = err.response?.data || err.message || String(err);
+      logger.error("[Scheduler] Failed to send Telegram notification", { error: errorDetail });
     }
-  } catch (err) {
-    const errorDetail = err.response?.data || err.stack || err.message || String(err);
-    logger.error("[Scheduler] Failed to send notification", { error: errorDetail });
   }
 }
 

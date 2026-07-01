@@ -1,16 +1,17 @@
 import './globals.css'
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#16a34a',
+}
+
 export const metadata = {
   title: 'Organic Bangalore',
   description: 'Compare prices across 6 organic produce delivery providers in Bangalore',
   manifest: '/manifest.json',
-  themeColor: '#16a34a',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   openGraph: {
     title: 'Organic Bangalore — Price Comparator',
     description: 'Find the cheapest organic fruits & vegetables across 6 Bangalore providers',

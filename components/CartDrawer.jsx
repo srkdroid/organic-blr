@@ -217,13 +217,31 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
                 
                 {activeStrategy?.unfulfilled_count > 0 && (
                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
-                     <p className="text-xs text-amber-700 font-semibold mb-1">
+                     <p className="text-xs text-amber-700 font-semibold mb-2">
                        ⚠ {activeStrategy.unfulfilled_count} item{activeStrategy.unfulfilled_count > 1 ? 's' : ''} unavailable in this combination:
                      </p>
-                     <ul className="list-disc pl-4 text-[11px] text-amber-600 space-y-0.5">
-                       {activeStrategy.unfulfilled_items?.map((name, idx) => (
-                         <li key={idx}>{name}</li>
-                       ))}
+                     <ul className="space-y-2">
+                       {activeStrategy.unfulfilled_items?.map((item, idx) => {
+                         const itemName = typeof item === 'string' ? item : item.name
+                         const unit     = typeof item === 'object' ? item.unit : null
+                         const available = typeof item === 'object' ? (item.availableAt || []) : []
+                         return (
+                           <li key={idx} className="text-[11px]">
+                             <span className="text-amber-700 font-medium">
+                               {itemName}{unit ? ` (${unit})` : ''}
+                             </span>
+                             {available.length > 0 ? (
+                               <span className="block text-[10px] text-amber-600 mt-0.5">
+                                 Available at: {available.join(' · ')}
+                               </span>
+                             ) : (
+                               <span className="block text-[10px] text-amber-500 mt-0.5 italic">
+                                 Not available at any provider with this size
+                               </span>
+                             )}
+                           </li>
+                         )
+                       })}
                      </ul>
                      {activeStrategy.unfulfilled_count > (activeStrategy.unfulfilled_items?.length || 0) && (
                        <p className="text-[10px] text-amber-600 mt-1 italic">
