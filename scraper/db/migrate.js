@@ -115,7 +115,8 @@ VALUES
   ('LU','Lushful',              'https://lushful.org',             35,  599, 300),
   ('AK','Satva Farm',           'https://satvafarm.com',            0,  500,   0),
   ('FF','Farm Fresh Bangalore', 'https://farmfreshbangalore.com',   0,  500, 500),
-  ('GD','GreenDNA',             'https://www.greendna.in',         30,  500, 250)
+  ('GD','GreenDNA',             'https://www.greendna.in',         30,  500, 250),
+  ('BF','Bhoomi Farms',         'https://bhoomi.farm',             40,  499,   0)
 ON CONFLICT (id) DO UPDATE SET
   name                = EXCLUDED.name,
   base_url            = EXCLUDED.base_url,
