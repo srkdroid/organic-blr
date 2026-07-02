@@ -10,11 +10,11 @@ export const viewport = {
 
 export const metadata = {
   title: 'Organic Bangalore',
-  description: 'Compare prices across 6 organic produce delivery providers in Bangalore',
+  description: 'Compare prices across 7 organic produce delivery providers in Bangalore',
   manifest: '/manifest.json',
   openGraph: {
     title: 'Organic Bangalore — Price Comparator',
-    description: 'Find the cheapest organic fruits & vegetables across 6 Bangalore providers',
+    description: 'Find the cheapest organic fruits & vegetables across 7 Bangalore providers',
     type: 'website',
   },
 }

@@ -85,7 +85,7 @@ export function PriceApp({ initialItems = [], initialProviders = [] }) {
                 Organic Bangalore
               </h1>
               <p className="text-xs text-gray-400 hidden sm:block">
-                Compare prices · 6 providers
+                Compare prices · {PROVIDER_IDS.length} providers
               </p>
             </div>
           </div>
