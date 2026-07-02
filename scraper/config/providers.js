@@ -73,6 +73,17 @@ export const PROVIDERS = {
     freeAbove: 500,
     minOrder: 250,
   },
+  BF: {
+    id: "BF",
+    name: "Bhoomi Farms",
+    color: "#65a30d",
+    bg: "#ecfccb",
+    url: "bhoomi.farm",
+    deliveryCharge: 40,
+    freeAbove: 499,
+    minOrder: 0,
+    note: "Delivers in Bengaluru (city_id=549). REST API scraper.",
+  },
 };
 
 export const PROVIDER_IDS = Object.keys(PROVIDERS);

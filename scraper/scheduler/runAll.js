@@ -1,7 +1,7 @@
 /**
  * scraper/scheduler/runAll.js
- * Runs all 6 scrapers, normalises names, saves to Supabase.
- * Lightweight scrapers (Shopify/Cheerio) run in parallel.
+ * Runs all 7 scrapers, normalises names, saves to Supabase.
+ * Lightweight scrapers (Shopify/REST API) run in parallel.
  * Browser scrapers (Playwright) run sequentially to share one browser.
  *
  * Run: node scraper/scheduler/runAll.js
@@ -86,11 +86,12 @@ async function sendNotification(results, durationSecs) {
   }
 }
 
-// Lightweight = no browser (Shopify JSON, Cheerio)
+// Lightweight = no browser (Shopify JSON, Cheerio, REST API)
 const LIGHTWEIGHT = [
   { id: "OM", module: require("../scrapers/organicMandya") },
   { id: "LU", module: require("../scrapers/lushful") },
   { id: "FF", module: require("../scrapers/farmFresh") },
+  { id: "BF", module: require("../scrapers/bhoomi") },
 ];
 
 // Browser-based = must share one Playwright process
