@@ -58,11 +58,13 @@ const TIMEOUT = 20_000;
 // Only produce-relevant categories — excludes dairy, grocery, snacks etc.
 // Use url_title (not category_id) — the id-based endpoint caps at 20 products.
 const STATIC_CATEGORIES = [
-  { title: "fresh-vegetables",    label: "Fresh Vegetables" },
+  { title: "top-selling",         label: "Top Selling" },
   { title: "fresh-fruits",        label: "Fresh Fruits" },
+  { title: "fresh-vegetables",    label: "Fresh Vegetables" },
   { title: "leafy-and-seasonings",label: "Leafy and Seasonings" },
-  { title: "exotics",             label: "Exotics" },
   { title: "other-vegetables",    label: "Other Vegetables" },
+  { title: "exotics",             label: "Exotics" },
+  { title: "misfits",             label: "Misfits" },
   { title: "mangoes",             label: "Mangoes" },
 ];
 
@@ -141,6 +143,8 @@ function parseProducts(rawProducts, label) {
       if (!price || price <= 0) continue;
 
       const variantInStock = inStock && (v.stock ?? 1) > 0;
+      if (!variantInStock) continue; // Skip out-of-stock variants/products completely
+
       const unit = buildUnit(v.unit);
 
       results.push(
@@ -149,7 +153,7 @@ function parseProducts(rawProducts, label) {
           name,
           price,
           unit,
-          available: variantInStock,
+          available: true, // Since we only pushed if variantInStock is true
           imageUrl,
           productUrl,
         }),
@@ -179,16 +183,20 @@ async function scrape() {
     });
 
     if (apiCats.length > 0) {
-      // Filter to produce-relevant categories only
-      const EXCLUDED_URLS = new Set([
-        "top-selling", "offer-for-you", "dals-and-rice", "ghee-and-oils",
-        "dairy-and-eggs", "masalas-and-dry-fruits", "snacks-and-coffee",
-        "natural-sweeteners", "grains-and-millets", "ready-to-cook",
-        "dehydrated", "misfits",
+      // Filter to produce-relevant categories only using allowlist
+      const ALLOWED_URLS = new Set([
+        "top-selling",
+        "fresh-fruits",
+        "fresh-vegetables",
+        "leafy-and-seasonings",
+        "other-vegetables",
+        "exotics",
+        "misfits",
+        "mangoes",
       ]);
       const filtered = apiCats.filter((c) => {
         const url = (c.url_title || c.url || "").toLowerCase();
-        return url && !EXCLUDED_URLS.has(url);
+        return url && ALLOWED_URLS.has(url);
       });
 
       if (filtered.length > 0) {
