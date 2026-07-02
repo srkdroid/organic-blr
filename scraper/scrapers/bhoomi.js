@@ -6,15 +6,13 @@
  *
  * API endpoints (confirmed working July 2026):
  *
- *   GET /v1/web-app/get-all-products?city_id=549
- *     → returns "Top Selling" products (default, 20 items)
- *     NOTE: the ?title=<category> variant causes a MySQL GROUP BY error on their
- *     server — use the category_id param instead (discovered via inspection).
+ *   GET /v1/web-app/get-all-products?page=1&limit=500&title=<url_title>&city_id=549
+ *     → returns full category product list (up to 89–177 items per category)
+ *     NOTE: ?category_id= only returns 20 items (hard server cap — do not use).
+ *     NOTE: the title= approach was briefly broken when the server came back online
+ *     after downtime; if it returns a MySQL GROUP BY error, retry — it's transient.
  *
- *   GET /v1/web-app/get-all-products?city_id=549&category_id=<id>
- *     → returns all products in that category
- *
- * Product JSON shape (flat, dot-notation style):
+ * Product JSON shape:
  *   product_name      → name
  *   product_image     → image URL
  *   is_in_stock       → 1 = in stock
@@ -52,19 +50,20 @@ const {
 
 const PROVIDER_ID = "BF";
 const BASE_URL = "https://bhoomi.farm/v1/web-app";
-const CITY_ID = 549; // Bengaluru
+const CITY_ID = 549;     // Bengaluru
+const PAGE_LIMIT = 500;  // High limit to get all products in one call per category
 const TIMEOUT = 20_000;
 
-// Fallback static category IDs (confirmed from live API embedded categories list,
-// July 2026). Only produce-relevant categories are included.
-// The API hard-caps each category at 20 products server-side.
+// Fallback static category url_titles (confirmed from live API, July 2026).
+// Only produce-relevant categories — excludes dairy, grocery, snacks etc.
+// Use url_title (not category_id) — the id-based endpoint caps at 20 products.
 const STATIC_CATEGORIES = [
-  { id: -103, label: "Mangoes" },
-  { id: 1,    label: "Fresh Vegetables" },
-  { id: 2,    label: "Leafy and Seasonings" },
-  { id: 3,    label: "Exotics" },
-  { id: 5,    label: "Fresh Fruits" },
-  { id: 7,    label: "Other Vegetables" },
+  { title: "fresh-vegetables",    label: "Fresh Vegetables" },
+  { title: "fresh-fruits",        label: "Fresh Fruits" },
+  { title: "leafy-and-seasonings",label: "Leafy and Seasonings" },
+  { title: "exotics",             label: "Exotics" },
+  { title: "other-vegetables",    label: "Other Vegetables" },
+  { title: "mangoes",             label: "Mangoes" },
 ];
 
 // ── HTTP client ───────────────────────────────────────────────────────────────
@@ -80,30 +79,31 @@ const client = axios.create({
   },
 });
 
-// ── Fetch category list from API ──────────────────────────────────────────────
+// ── Fetch category list from the products response ───────────────────────────
+// The get-all-categories endpoint is broken (MySQL error); instead we read
+// the categories list embedded in any get-all-products response.
 async function fetchCategories() {
-  logger.debug(`[BF] GET /get-all-categories?city_id=${CITY_ID}`);
-  const res = await client.get("/get-all-categories", {
+  logger.debug(`[BF] Fetching embedded category list from products endpoint`);
+  const res = await client.get("/get-all-products", {
     params: { city_id: CITY_ID },
   });
   if (res.data?.status !== 1) {
-    throw new Error(res.data?.message || "Categories API returned non-1 status");
+    throw new Error(res.data?.message || "Products API returned non-1 status");
   }
-  const data = res.data.data;
-  // API may return l2_categories or categories array
-  return data?.l2_categories || data?.categories || [];
+  // Each products response embeds the full category list
+  return res.data?.data?.categories || [];
 }
 
-// ── Fetch products for one category by ID ────────────────────────────────────
-async function fetchCategoryProducts(categoryId, label) {
-  logger.debug(`[BF] GET /get-all-products?category_id=${categoryId} (${label})`);
+// ── Fetch all products for one category by url_title ─────────────────────────
+async function fetchCategoryProducts(urlTitle, label) {
+  logger.debug(`[BF] GET /get-all-products?title=${urlTitle} (${label})`);
   const res = await client.get("/get-all-products", {
-    params: { city_id: CITY_ID, category_id: categoryId, limit: 500 },
+    params: { city_id: CITY_ID, title: urlTitle, limit: PAGE_LIMIT, page: 1 },
   });
 
   if (res.data?.status !== 1) {
     throw new Error(
-      `Products API error for category ${categoryId}: ${res.data?.message}`,
+      `Products API error for "${urlTitle}": ${res.data?.message}`,
     );
   }
   return res.data?.data?.products || [];
@@ -169,7 +169,8 @@ async function scrape() {
 
   let categories = STATIC_CATEGORIES;
 
-  // Try to get live category list (in case new categories were added)
+  // Try to refresh the category list from the embedded categories in a products response
+  // (avoids the broken /get-all-categories endpoint)
   try {
     const apiCats = await withRetry(() => fetchCategories(), {
       retries: 2,
@@ -178,35 +179,30 @@ async function scrape() {
     });
 
     if (apiCats.length > 0) {
-      // Filter to produce-relevant categories using keyword matching
-      const produceKeywords = [
-        "vegetable", "fruit", "leafy", "herb", "mango",
-        "seed", "nut", "green", "seasonal",
-      ];
+      // Filter to produce-relevant categories only
+      const EXCLUDED_URLS = new Set([
+        "top-selling", "offer-for-you", "dals-and-rice", "ghee-and-oils",
+        "dairy-and-eggs", "masalas-and-dry-fruits", "snacks-and-coffee",
+        "natural-sweeteners", "grains-and-millets", "ready-to-cook",
+        "dehydrated", "misfits",
+      ]);
       const filtered = apiCats.filter((c) => {
-        const name = (c.l2_category || c.name || "").toLowerCase();
-        const url = (c.url_title || c.category_url || "").toLowerCase();
-        return produceKeywords.some(
-          (kw) => name.includes(kw) || url.includes(kw),
-        );
+        const url = (c.url_title || c.url || "").toLowerCase();
+        return url && !EXCLUDED_URLS.has(url);
       });
 
       if (filtered.length > 0) {
         categories = filtered.map((c) => ({
-          id: c.id,
-          label: c.l2_category || c.name || `cat-${c.id}`,
+          title: c.url_title || c.url,
+          label: c.l2_category || c.name || c.url_title,
         }));
-        logger.info(
-          `[BF] Using ${categories.length} live categories from API`,
-        );
+        logger.info(`[BF] Using ${categories.length} live categories from API`);
       } else {
-        logger.warn(
-          "[BF] Live categories API returned no produce categories, using static list",
-        );
+        logger.warn("[BF] No produce categories from API, using static list");
       }
     }
   } catch (err) {
-    logger.warn("[BF] Categories API unavailable, using static list", {
+    logger.warn("[BF] Category fetch failed, using static list", {
       error: err.message,
     });
   }
@@ -216,7 +212,7 @@ async function scrape() {
   for (const cat of categories) {
     try {
       const rawProducts = await withRetry(
-        () => fetchCategoryProducts(cat.id, cat.label),
+        () => fetchCategoryProducts(cat.title, cat.label),
         { retries: 3, delayMs: 2000, label: `BF ${cat.label}` },
       );
 
@@ -225,7 +221,7 @@ async function scrape() {
 
       await sleep(400); // polite delay between categories
     } catch (err) {
-      logger.error(`[BF] Failed to scrape category "${cat.label}" (id=${cat.id})`, {
+      logger.error(`[BF] Failed to scrape category "${cat.label}" (title=${cat.title})`, {
         error: err.message,
       });
     }
