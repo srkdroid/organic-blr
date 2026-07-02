@@ -134,18 +134,41 @@ function parseProducts(rawProducts, label) {
     const imageUrl = item.product_image || null;
     const productUrl = `https://bhoomi.farm/product-detail/${item.id || ""}`;
 
-    const variants = item.varients || [];
-    if (variants.length === 0) continue;
+    const isMultiVariant = item.varient === 1 || (item.varients && item.varients.length > 0);
 
-    for (const v of variants) {
-      if (v.is_deleted) continue;
-      const price = v.price ?? null;
+    if (isMultiVariant) {
+      const variants = item.varients || [];
+      for (const v of variants) {
+        if (v.is_deleted) continue;
+        const price = v.price ?? null;
+        if (!price || price <= 0) continue;
+
+        const variantInStock = inStock && (v.stock ?? 1) > 0;
+        if (!variantInStock) continue; // Skip out-of-stock variants completely
+
+        const unit = buildUnit(v.unit);
+
+        results.push(
+          buildProduct({
+            providerId: PROVIDER_ID,
+            name,
+            price,
+            unit,
+            available: true,
+            imageUrl,
+            productUrl,
+          }),
+        );
+      }
+    } else {
+      // Single variant product (varient === 0)
+      const price = item.price ?? null;
       if (!price || price <= 0) continue;
 
-      const variantInStock = inStock && (v.stock ?? 1) > 0;
-      if (!variantInStock) continue; // Skip out-of-stock variants/products completely
+      const productInStock = inStock && (item.stock ?? 1) > 0;
+      if (!productInStock) continue; // Skip out-of-stock products completely
 
-      const unit = buildUnit(v.unit);
+      const unit = buildUnit(item.unit);
 
       results.push(
         buildProduct({
@@ -153,7 +176,7 @@ function parseProducts(rawProducts, label) {
           name,
           price,
           unit,
-          available: true, // Since we only pushed if variantInStock is true
+          available: true,
           imageUrl,
           productUrl,
         }),
