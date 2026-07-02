@@ -4,21 +4,30 @@
  * Platform  : Custom REST API (Angular SPA), no auth required
  * City      : Bengaluru (city_id = 549)
  *
- * API endpoints:
- *   GET /v1/web-app/get-all-categories?city_id=549
- *     → returns list of categories (l2_categories array)
- *       each with: id, l2_category (name), url_title
+ * API endpoints (confirmed working July 2026):
  *
- *   GET /v1/web-app/get-all-products?page=1&limit=200&title={url_title}&city_id=549
- *     → returns products for a category
- *       each with: product_name, product_image, is_in_stock,
- *                  variants[]: { quantity_variant, price, market_price, stock }
+ *   GET /v1/web-app/get-all-products?city_id=549
+ *     → returns "Top Selling" products (default, 20 items)
+ *     NOTE: the ?title=<category> variant causes a MySQL GROUP BY error on their
+ *     server — use the category_id param instead (discovered via inspection).
+ *
+ *   GET /v1/web-app/get-all-products?city_id=549&category_id=<id>
+ *     → returns all products in that category
+ *
+ * Product JSON shape (flat, dot-notation style):
+ *   product_name      → name
+ *   product_image     → image URL
+ *   is_in_stock       → 1 = in stock
+ *   varients[]        → array of size variants (note: API spells it "varients")
+ *     .unit           → weight in grams (numeric, e.g. 250, 500)
+ *     .price          → selling price (INR)
+ *     .compare_price  → MRP
+ *     .stock          → units in stock
  *
  * Strategy:
- *   1. Fetch all categories
- *   2. Scrape only produce-relevant categories (vegetables, fruits, leafy, herbs, exotic)
- *   3. For each product, emit one entry per variant (size/weight)
- *   4. No pagination needed — limit=200 covers the full catalogue per category
+ *   1. Fetch category list from get-all-categories (fallback to static IDs)
+ *   2. Scrape produce-relevant categories by category_id
+ *   3. Emit one product entry per variant
  *
  * Run preview : node scraper/scrapers/bhoomi.js
  * Run + save  : node scraper/scrapers/bhoomi.js --save
@@ -43,23 +52,22 @@ const {
 
 const PROVIDER_ID = "BF";
 const BASE_URL = "https://bhoomi.farm/v1/web-app";
-const CITY_ID = 549;   // Bengaluru
-const PAGE_LIMIT = 200; // API can handle large limits; covers most categories in one call
+const CITY_ID = 549; // Bengaluru
 const TIMEOUT = 20_000;
 
-// Only scrape produce-relevant category URL titles.
-// Discovered from get-all-categories during feasibility study (July 2026).
-// If null, we fall back to fetching from the categories API dynamically.
-const PRODUCE_CATEGORIES = [
-  "fresh-vegetables",
-  "fresh-fruits",
-  "leafy-and-seasonings",
-  "dried-fruits-nuts-and-seeds",
-  "herbs-and-microgreens",
-  "mangoes",
+// Fallback static category IDs (confirmed from live API embedded categories list,
+// July 2026). Only produce-relevant categories are included.
+// The API hard-caps each category at 20 products server-side.
+const STATIC_CATEGORIES = [
+  { id: -103, label: "Mangoes" },
+  { id: 1,    label: "Fresh Vegetables" },
+  { id: 2,    label: "Leafy and Seasonings" },
+  { id: 3,    label: "Exotics" },
+  { id: 5,    label: "Fresh Fruits" },
+  { id: 7,    label: "Other Vegetables" },
 ];
 
-// ── HTTP client setup ─────────────────────────────────────────────────────────
+// ── HTTP client ───────────────────────────────────────────────────────────────
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: TIMEOUT,
@@ -72,77 +80,68 @@ const client = axios.create({
   },
 });
 
-// ── Fetch category list from the API ─────────────────────────────────────────
+// ── Fetch category list from API ──────────────────────────────────────────────
 async function fetchCategories() {
   logger.debug(`[BF] GET /get-all-categories?city_id=${CITY_ID}`);
   const res = await client.get("/get-all-categories", {
     params: { city_id: CITY_ID },
   });
-  // API shape: data.l2_categories[] or data.categories[]
-  const data = res.data?.data;
-  return (
-    data?.l2_categories ||
-    data?.categories ||
-    []
-  );
+  if (res.data?.status !== 1) {
+    throw new Error(res.data?.message || "Categories API returned non-1 status");
+  }
+  const data = res.data.data;
+  // API may return l2_categories or categories array
+  return data?.l2_categories || data?.categories || [];
 }
 
-// ── Fetch products for one category ──────────────────────────────────────────
-async function fetchCategoryProducts(urlTitle) {
-  const params = {
-    page: 1,
-    limit: PAGE_LIMIT,
-    title: urlTitle,
-    city_id: CITY_ID,
-  };
+// ── Fetch products for one category by ID ────────────────────────────────────
+async function fetchCategoryProducts(categoryId, label) {
+  logger.debug(`[BF] GET /get-all-products?category_id=${categoryId} (${label})`);
+  const res = await client.get("/get-all-products", {
+    params: { city_id: CITY_ID, category_id: categoryId, limit: 500 },
+  });
 
-  logger.debug(`[BF] GET /get-all-products?title=${urlTitle}`);
-  const res = await client.get("/get-all-products", { params });
+  if (res.data?.status !== 1) {
+    throw new Error(
+      `Products API error for category ${categoryId}: ${res.data?.message}`,
+    );
+  }
   return res.data?.data?.products || [];
 }
 
-// ── Parse variant quantity string → unit ──────────────────────────────────────
-// e.g. "500 g" → "500g", "1 kg" → "1kg", "6 pcs" → "6pcs", "1 bunch" → "1bunch"
-function parseVariantUnit(raw) {
-  if (!raw) return null;
-  let u = String(raw).trim().toLowerCase();
-  // Normalise known patterns
-  u = u.replace(/\s*(grams?|gm|gms)\b/, "g");
-  u = u.replace(/\s*(kilograms?|kgs?)\b/, "kg");
-  u = u.replace(/\s*(pieces?|pcs?|nos?)\b/, "pcs");
-  u = u.replace(/\s*(bunches?)\b/, "bunch");
-  u = u.replace(/\s*(litres?|liters?|ltr?)\b/, "l");
-  u = u.replace(/\s*(millilitres?|ml)\b/, "ml");
-  // Remove stray internal whitespace between number and unit
-  u = u.replace(/(\d)\s+(g|kg|ml|l|pcs|bunch)$/, "$1$2");
-  return u;
+// ── Build unit string from Bhoomi's numeric weight ───────────────────────────
+// varients.unit is a plain number in grams (e.g. 250 → "250g", 1000 → "1kg")
+function buildUnit(grams) {
+  if (!grams && grams !== 0) return null;
+  const g = Number(grams);
+  if (isNaN(g) || g <= 0) return null;
+  if (g >= 1000 && g % 1000 === 0) return `${g / 1000}kg`;
+  if (g >= 1000) return `${(g / 1000).toFixed(2).replace(/\.?0+$/, "")}kg`;
+  return `${g}g`;
 }
 
-// ── Convert raw API products → scraper product objects ────────────────────────
-function parseProducts(rawProducts) {
+// ── Convert raw products → scraper product objects ───────────────────────────
+function parseProducts(rawProducts, label) {
   const results = [];
 
   for (const item of rawProducts) {
     const name = item.product_name?.trim();
     if (!name) continue;
 
-    const inStock = item.is_in_stock !== false; // default to true if missing
+    const inStock = item.is_in_stock === 1 || item.is_in_stock === true;
     const imageUrl = item.product_image || null;
-    const productUrl = `https://bhoomi.farm/products/${item.url_title || name.replace(/\s+/g, "-").toLowerCase()}`;
+    const productUrl = `https://bhoomi.farm/product-detail/${item.id || ""}`;
 
-    const variants = item.variants || [];
+    const variants = item.varients || [];
+    if (variants.length === 0) continue;
 
-    if (variants.length === 0) {
-      // No variants — skip; we need a price to be useful
-      continue;
-    }
+    for (const v of variants) {
+      if (v.is_deleted) continue;
+      const price = v.price ?? null;
+      if (!price || price <= 0) continue;
 
-    for (const variant of variants) {
-      const price = variant.price ?? variant.mrp ?? null;
-      if (!price) continue;
-
-      const variantInStock = inStock && (variant.stock ?? 1) > 0;
-      const unit = parseVariantUnit(variant.quantity_variant);
+      const variantInStock = inStock && (v.stock ?? 1) > 0;
+      const unit = buildUnit(v.unit);
 
       results.push(
         buildProduct({
@@ -158,6 +157,9 @@ function parseProducts(rawProducts) {
     }
   }
 
+  logger.info(
+    `[BF] ${label}: ${rawProducts.length} products → ${results.length} variants`,
+  );
   return results;
 }
 
@@ -165,9 +167,9 @@ function parseProducts(rawProducts) {
 async function scrape() {
   logger.info("[BF] Starting Bhoomi Farms scrape via REST API");
 
-  let categoriesToScrape = PRODUCE_CATEGORIES;
+  let categories = STATIC_CATEGORIES;
 
-  // Optionally refresh from the live API to catch new categories
+  // Try to get live category list (in case new categories were added)
   try {
     const apiCats = await withRetry(() => fetchCategories(), {
       retries: 2,
@@ -176,48 +178,54 @@ async function scrape() {
     });
 
     if (apiCats.length > 0) {
-      // Filter to only those whose url_title matches our whitelist
-      const apiTitles = apiCats
-        .map((c) => c.url_title || c.category_url || c.l2_category_url)
-        .filter(Boolean);
+      // Filter to produce-relevant categories using keyword matching
+      const produceKeywords = [
+        "vegetable", "fruit", "leafy", "herb", "mango",
+        "seed", "nut", "green", "seasonal",
+      ];
+      const filtered = apiCats.filter((c) => {
+        const name = (c.l2_category || c.name || "").toLowerCase();
+        const url = (c.url_title || c.category_url || "").toLowerCase();
+        return produceKeywords.some(
+          (kw) => name.includes(kw) || url.includes(kw),
+        );
+      });
 
-      // Merge: keep our static list but also add any new ones from the API
-      // that match known produce keywords
-      const produceKeywords = ["vegetable", "fruit", "leafy", "herb", "mango", "seed", "nut", "greens"];
-      const dynamicExtra = apiTitles.filter(
-        (t) =>
-          !categoriesToScrape.includes(t) &&
-          produceKeywords.some((kw) => t.includes(kw)),
-      );
-      if (dynamicExtra.length > 0) {
-        logger.info(`[BF] Discovered extra categories: ${dynamicExtra.join(", ")}`);
-        categoriesToScrape = [...categoriesToScrape, ...dynamicExtra];
+      if (filtered.length > 0) {
+        categories = filtered.map((c) => ({
+          id: c.id,
+          label: c.l2_category || c.name || `cat-${c.id}`,
+        }));
+        logger.info(
+          `[BF] Using ${categories.length} live categories from API`,
+        );
+      } else {
+        logger.warn(
+          "[BF] Live categories API returned no produce categories, using static list",
+        );
       }
-
-      logger.info(`[BF] Will scrape ${categoriesToScrape.length} categories`);
     }
   } catch (err) {
-    logger.warn("[BF] Could not fetch categories from API, using static list", {
+    logger.warn("[BF] Categories API unavailable, using static list", {
       error: err.message,
     });
   }
 
   const allProducts = [];
 
-  for (const urlTitle of categoriesToScrape) {
+  for (const cat of categories) {
     try {
       const rawProducts = await withRetry(
-        () => fetchCategoryProducts(urlTitle),
-        { retries: 3, delayMs: 2000, label: `BF ${urlTitle}` },
+        () => fetchCategoryProducts(cat.id, cat.label),
+        { retries: 3, delayMs: 2000, label: `BF ${cat.label}` },
       );
 
-      const parsed = parseProducts(rawProducts);
-      logger.info(`[BF] ${urlTitle}: ${rawProducts.length} products → ${parsed.length} variants`);
+      const parsed = parseProducts(rawProducts, cat.label);
       allProducts.push(...parsed);
 
-      await sleep(300); // polite delay
+      await sleep(400); // polite delay between categories
     } catch (err) {
-      logger.error(`[BF] Failed to scrape category "${urlTitle}"`, {
+      logger.error(`[BF] Failed to scrape category "${cat.label}" (id=${cat.id})`, {
         error: err.message,
       });
     }

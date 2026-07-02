@@ -15,12 +15,14 @@
     "scrape:healthybuddha": "node scraper/scrapers/healthyBuddha.js",
     "scrape:akshayakalpa": "node scraper/scrapers/akshayakalpa.js",
     "scrape:greendna": "node scraper/scrapers/greenDNA.js",
+    "scrape:bhoomi": "node scraper/scrapers/bhoomi.js",
     "save:organicmandya": "node scraper/scrapers/organicMandya.js --save",
     "save:lushful": "node scraper/scrapers/lushful.js --save",
     "save:farmfresh": "node scraper/scrapers/farmFresh.js --save",
     "save:healthybuddha": "node scraper/scrapers/healthyBuddha.js --save",
     "save:akshayakalpa": "node scraper/scrapers/akshayakalpa.js --save",
     "save:greendna": "node scraper/scrapers/greenDNA.js --save",
+    "save:bhoomi": "node scraper/scrapers/bhoomi.js --save",
     "scheduler": "node scraper/scheduler/cron.js"
   },
   "dependencies": {
