@@ -77,16 +77,21 @@ function shopifyProductToItems(shopifyProduct, providerId) {
 async function scrapeShopify({ providerId, collectionsJson }) {
   const rawProducts = []
 
+  // Random jitter (0–3s) so parallel scrapers don't all hit Shopify CDN at the same instant
+  await sleep(Math.floor(Math.random() * 3000))
+
   for (const url of collectionsJson) {
     try {
       const fetched = await withRetry(() => fetchCollection(url), {
-        retries: 3, delayMs: 2000, label: `${providerId} ${url}`,
+        retries: 5, delayMs: 3000, label: `${providerId} ${url.split('/collections/')[1]?.split('/')[0] || url}`,
       })
       rawProducts.push(...fetched)
       logger.info(`[${providerId}] Fetched ${fetched.length} products from ${url}`)
     } catch (err) {
       logger.error(`[${providerId}] Failed to fetch ${url}`, { error: err.message })
     }
+    // Polite delay between collections within the same store
+    await sleep(2000 + Math.floor(Math.random() * 1000))
   }
 
   const normalised = rawProducts.flatMap(p => shopifyProductToItems(p, providerId))

@@ -43,7 +43,7 @@ function randomUserAgent() {
   return UA_LIST[Math.floor(Math.random() * UA_LIST.length)];
 }
 
-// ── Retry with exponential back-off ──────────────────────────────────────────
+// ── Retry with exponential back-off (429-aware) ──────────────────────────────
 async function withRetry(
   fn,
   { retries = 3, delayMs = 2000, label = "operation" } = {},
@@ -53,11 +53,25 @@ async function withRetry(
       return await fn();
     } catch (err) {
       if (attempt === retries) throw err;
-      const wait = delayMs * attempt;
-      logger.warn(
-        `${label} failed (attempt ${attempt}/${retries}), retrying in ${wait}ms`,
-        { error: err.message },
-      );
+
+      // For 429 rate-limit errors, wait much longer and respect Retry-After header
+      const is429 = err.response?.status === 429;
+      let wait;
+      if (is429) {
+        const retryAfter = parseInt(err.response?.headers?.['retry-after'] || '0', 10);
+        // Respect Retry-After if given, otherwise use 60s base * attempt
+        wait = retryAfter > 0 ? retryAfter * 1000 : 60_000 * attempt;
+        logger.warn(
+          `${label} rate-limited 429 (attempt ${attempt}/${retries}), waiting ${wait / 1000}s`,
+          { error: err.message },
+        );
+      } else {
+        wait = delayMs * attempt;
+        logger.warn(
+          `${label} failed (attempt ${attempt}/${retries}), retrying in ${wait}ms`,
+          { error: err.message },
+        );
+      }
       await sleep(wait);
     }
   }
