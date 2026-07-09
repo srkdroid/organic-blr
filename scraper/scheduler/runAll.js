@@ -92,12 +92,12 @@ const LIGHTWEIGHT = [
   { id: "LU", module: require("../scrapers/lushful") },
   { id: "FF", module: require("../scrapers/farmFresh") },
   { id: "BF", module: require("../scrapers/bhoomi") },
+  { id: "AK", module: require("../scrapers/akshayakalpa") }, // Shopify JSON — no browser needed
 ];
 
 // Browser-based = must share one Playwright process
 const BROWSER_BASED = [
   { id: "HB", module: require("../scrapers/healthyBuddha") },
-  { id: "AK", module: require("../scrapers/akshayakalpa") },
   { id: "GD", module: require("../scrapers/greenDNA") },
 ];
 

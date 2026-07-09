@@ -20,11 +20,21 @@ async function fetchCollection(collectionUrl) {
         'User-Agent':      randomUserAgent(),
         'Accept':          'application/json',
         'Accept-Language': 'en-IN,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
       },
     })
 
     const { products } = response.data
-    if (!products || products.length === 0) break
+
+    // Diagnostic: log when 0 products returned so we can spot rate-limiting
+    if (!products || products.length === 0) {
+      const ct = response.headers['content-type'] || '';
+      const body = typeof response.data === 'string'
+        ? response.data.slice(0, 200)
+        : JSON.stringify(response.data).slice(0, 200);
+      logger.warn(`[Shopify] 0 products from ${url} — HTTP ${response.status} content-type: ${ct} body: ${body}`);
+      break
+    }
 
     allProducts.push(...products)
     if (products.length < 250) break   // last page
