@@ -46,6 +46,19 @@ const COLLECTIONS = [
   `${BASE}/collections/all/products.json?limit=250`,
 ];
 
+// ── ScraperAPI proxy support ───────────────────────────────────────────────────
+// Set SCRAPERAPI_KEY + PROXY_PROVIDERS=AK in scraper/.env.scraper on the VM
+// to route requests through ScraperAPI and bypass IP-level 429 blocks.
+const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY || '';
+const PROXY_PROVIDERS = (process.env.PROXY_PROVIDERS || '')
+  .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+const USE_PROXY = !!(SCRAPERAPI_KEY && PROXY_PROVIDERS.includes('AK'));
+
+function proxyUrl(targetUrl) {
+  if (!USE_PROXY) return targetUrl;
+  return `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}`;
+}
+
 // ── Filter: only keep items with "organic" in the title ───────────────────────
 function isOrganicProduce(title) {
   return /organic/i.test(title || "");
@@ -89,11 +102,12 @@ async function fetchCollection(collectionUrl) {
   let page = 1;
 
   while (true) {
-    const url = `${collectionUrl}&page=${page}`;
-    logger.debug(`[AK→SatvaFarm] GET ${url}`);
+    const pageUrl = `${collectionUrl}&page=${page}`;
+    const requestUrl = proxyUrl(pageUrl);
+    logger.debug(`[AK→SatvaFarm] GET ${pageUrl}${USE_PROXY ? ' (via proxy)' : ''}`);
 
-    const response = await axios.get(url, {
-      timeout: 20_000,
+    const response = await axios.get(requestUrl, {
+      timeout: USE_PROXY ? 60_000 : 20_000,
       headers: {
         "User-Agent": randomUserAgent(),
         Accept: "application/json",
@@ -124,7 +138,7 @@ async function fetchCollection(collectionUrl) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function scrape() {
   logger.info(
-    "[AK→SatvaFarm] Starting Satva Farm scrape (Shopify JSON + organic filter)",
+    `[AK→SatvaFarm] Starting Satva Farm scrape (Shopify JSON + organic filter)${USE_PROXY ? ' via ScraperAPI proxy' : ''}`,
   );
 
   const allProducts = [];
