@@ -17,17 +17,18 @@ export function PriceTable({ items, cart, onToggle, onUnitChange }) {
       <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="w-8 px-3 py-3" />
-              <th className="px-3 py-3 text-left font-medium text-gray-500 text-xs w-44">Item</th>
-              <th className="px-2 py-3 text-left font-medium text-gray-500 text-xs w-28">Size</th>
+            <tr>
+              <th className="sticky top-14 z-20 w-8 px-3 py-3 bg-gray-50 border-b border-gray-200" />
+              <th className="sticky top-14 z-20 px-3 py-3 text-left font-medium text-gray-500 text-xs w-44 bg-gray-50 border-b border-gray-200">Item</th>
+              <th className="sticky top-14 z-20 px-2 py-3 text-left font-medium text-gray-500 text-xs w-28 bg-gray-50 border-b border-gray-200">Size</th>
               {PROVIDER_IDS.map(id => (
-                <th key={id} className="px-2 py-3 text-right text-xs font-semibold"
+                <th key={id}
+                    className="sticky top-14 z-20 px-2 py-3 text-right text-xs font-semibold bg-gray-50 border-b border-gray-200"
                     style={{ color: PROVIDERS[id].color }}>
                   {id}
                 </th>
               ))}
-              <th className="px-3 py-3 text-right text-xs font-medium text-gray-500">Best</th>
+              <th className="sticky top-14 z-20 px-3 py-3 text-right text-xs font-medium text-gray-500 bg-gray-50 border-b border-gray-200">Best</th>
             </tr>
           </thead>
           <tbody>
