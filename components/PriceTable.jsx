@@ -14,7 +14,8 @@ export function PriceTable({ items, cart, onToggle, onUnitChange }) {
   return (
     <>
       {/* Desktop: classic table */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
+      <div className="hidden md:block rounded-xl border border-gray-200 shadow-sm bg-white"
+           style={{ overflowX: 'auto', overflowY: 'clip' }}>
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr>
