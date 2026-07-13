@@ -48,6 +48,7 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
   }, [open, onClose])
 
   const optimizations = result?.optimizations || []
+  const checkoutUrls  = result?.checkout_urls  || {}
   const activeStrategy = optimizations.find(o => o.id === activeOpt) || optimizations[0]
 
   return (
@@ -208,6 +209,33 @@ export function CartDrawer({ open, onClose, cart, onToggle }) {
                           {/* Subtotals */}
                           <div className="px-3 py-2 bg-gray-100/50 border-t border-gray-100 text-[10px] text-gray-500 flex justify-between">
                             <span>Items: ₹{pt.items_subtotal} | Del: {pt.delivery_applied > 0 ? `₹${pt.delivery_applied}` : 'Free'} | GST: ₹{pt.gst_amount}</span>
+                          </div>
+
+                          {/* Checkout / Shop button */}
+                          <div className="px-3 py-2 border-t border-gray-100">
+                            {checkoutUrls[pt.provider_id] ? (
+                              <a
+                                href={checkoutUrls[pt.provider_id]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1.5 w-full text-xs font-semibold
+                                           px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                                           text-white transition-colors"
+                              >
+                                🛒 Checkout with {cfg?.name} →
+                              </a>
+                            ) : (
+                              <a
+                                href={`https://${cfg?.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1.5 w-full text-xs font-medium
+                                           px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200
+                                           text-gray-600 transition-colors"
+                              >
+                                Shop on {cfg?.name} ↗
+                              </a>
+                            )}
                           </div>
                         </div>
                       )
