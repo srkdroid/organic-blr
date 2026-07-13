@@ -1023,7 +1023,7 @@ for (const entry of PRODUCE_DICT) {
 
 // Words to strip before matching
 const NOISE =
-  /\b(organic|fresh|farm|natural|desi|natti|country|hybrid|raw|ripe|baby|mini|local|certified|chemical[\s-]?free|pesticide[\s-]?free)\b/gi;
+  /\b(organic|fresh|farm|natural|desi|natti|country|hybrid|raw|ripe|baby|mini|local|certified|chemical[\s-]?free|pesticide[\s-]?free|satva|satv)\b/gi;
 const WEIGHT =
   /\b\d+[\d.-]*\s*(g|gm|gms|gram|grams|kg|kgs|ml|l|litre|liter|pcs?|piece|pieces|bunch|bunches|nos?|pack|packet|box|zip\s*lock)\b/gi;
 
@@ -1138,9 +1138,19 @@ function localDictMatch(products) {
 async function normalise(rawProducts, masterItems) {
   const valid = rawProducts.filter((p) => p.name && p.price && p.price > 0);
 
+  // Pre-clean raw names of leading asterisks, bullet points, hyphens, dots, and extra space
+  const cleaned = valid.map((p) => {
+    let name = String(p.name).trim();
+    name = name.replace(/^[\*\-\•\s\.\u2022]+/g, "").trim();
+    return {
+      ...p,
+      name,
+    };
+  });
+
   // Pass 1: Local dictionary first — curated aliases are more precise
   const { matched: dictMatched, unmatched: dictUnmatched } =
-    localDictMatch(valid);
+    localDictMatch(cleaned);
 
   // Pass 2: Fuse.js fuzzy match against DB master_items for leftovers
   const { matched: fuzzyMatched, unmatched: fuzzyUnmatched } = fuzzyMatch(
