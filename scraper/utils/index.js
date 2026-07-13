@@ -153,6 +153,7 @@ function buildProduct({
   available = true,
   imageUrl = null,
   productUrl = null,
+  variantId = null,
 }) {
   return {
     providerId,
@@ -162,6 +163,7 @@ function buildProduct({
     available,
     imageUrl: imageUrl || null,
     productUrl: productUrl || null,
+    variantId: variantId ? String(variantId) : null,
     scrapedAt: new Date().toISOString(),
   };
 }

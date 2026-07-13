@@ -110,8 +110,8 @@ async function saveListings(products, runId) {
         await client.query(
           `INSERT INTO provider_listings
              (provider_id, master_item_id, raw_name, canonical_name, price, unit,
-              available, image_url, product_url, match_method, scrape_run_id, scraped_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+              available, image_url, product_url, match_method, scrape_run_id, variant_id, scraped_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
            ON CONFLICT (provider_id, master_item_id, unit) DO UPDATE SET
              price          = EXCLUDED.price,
              available      = EXCLUDED.available,
@@ -119,6 +119,7 @@ async function saveListings(products, runId) {
              raw_name       = EXCLUDED.raw_name,
              match_method   = EXCLUDED.match_method,
              scrape_run_id  = EXCLUDED.scrape_run_id,
+             variant_id     = EXCLUDED.variant_id,
              scraped_at     = NOW()`,
           [
             p.providerId,
@@ -132,6 +133,7 @@ async function saveListings(products, runId) {
             p.productUrl || null,
             p.matchMethod || null,
             runId,
+            p.variantId || null,
           ],
         );
 

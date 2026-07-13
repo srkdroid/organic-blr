@@ -4,6 +4,35 @@ import { optimizeCart } from '@/lib/optimizer'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Build a Shopify cart URL for a given provider from cart items + their prices.
+ * e.g. https://organicmandya.com/cart/41234567:1,98765432:2
+ * Returns null if no items have variant_ids for that provider.
+ */
+function buildShopifyCartUrl(cartItems, allItems, providerId) {
+  const cfg = PROVIDERS[providerId]
+  if (!cfg?.shopifyCart || !cfg?.cartBase) return null
+
+  const segments = []
+
+  for (const cartItem of cartItems) {
+    const item = allItems.find(i => i.master_item_id === cartItem.master_item_id)
+    if (!item) continue
+
+    const qty = Math.max(1, parseInt(cartItem.quantity) || 1)
+    const providerPrices = (item.prices || []).filter(
+      p => p.provider_id === providerId && p.available && p.price
+    )
+    const { price: p } = getPriceForVariant(providerPrices, cartItem.unit)
+    if (p?.variant_id) {
+      segments.push(`${p.variant_id}:${qty}`)
+    }
+  }
+
+  if (segments.length === 0) return null
+  return `${cfg.cartBase}/${segments.join(',')}`
+}
+
 export async function POST(request) {
   try {
     const body = await request.json()
@@ -73,10 +102,18 @@ export async function POST(request) {
     // Run the subset optimization algorithm
     const optimizations = optimizeCart(cartItems, allItems)
 
+    // Build Shopify cart checkout URLs for OM, AK, GD
+    const checkout_urls = {}
+    for (const pid of Object.keys(PROVIDERS)) {
+      const url = buildShopifyCartUrl(cartItems, allItems, pid)
+      if (url) checkout_urls[pid] = url
+    }
+
     return Response.json({ 
       cart_items: cartItems.length, 
       provider_totals: result,
-      optimizations 
+      optimizations,
+      checkout_urls,
     })
   } catch (err) {
     console.error('[API /cart]', err.message)

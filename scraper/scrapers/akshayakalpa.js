@@ -91,6 +91,7 @@ function parseShopifyProduct(product) {
       available: variant.available !== false,
       imageUrl: product.images?.[0]?.src || null,
       productUrl: `${BASE}/products/${product.handle}`,
+      variantId: variant.id,
     }));
   }
   return items;

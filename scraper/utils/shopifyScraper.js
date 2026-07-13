@@ -89,6 +89,7 @@ function shopifyProductToItems(shopifyProduct, providerId) {
       unit,
       available,
       imageUrl:  shopifyProduct.images?.[0]?.src || null,
+      variantId: variant.id,
     }))
   }
 
