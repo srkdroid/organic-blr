@@ -1,7 +1,7 @@
 import { getAllItems } from '@/lib/db'
 import { enrichPrices } from '@/lib/providers'
 
-export const revalidate = 600  // cache for 10 minutes
+export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {

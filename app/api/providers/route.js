@@ -1,6 +1,6 @@
 import { getProviders } from '@/lib/db'
 
-export const revalidate = 300  // cache for 5 minutes
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {

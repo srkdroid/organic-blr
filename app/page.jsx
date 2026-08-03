@@ -2,8 +2,8 @@ import { getAllItems, getProviders } from '@/lib/db'
 import { enrichPrices } from '@/lib/providers'
 import { PriceApp } from '@/components/PriceApp'
 
-// Revalidate every 10 minutes via ISR — fresh enough given twice-daily scrapes
-export const revalidate = 600
+// Always fetch fresh data on page load
+export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   let initialItems = []
