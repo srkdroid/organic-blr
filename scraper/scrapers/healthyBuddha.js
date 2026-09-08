@@ -1,27 +1,11 @@
 /**
  * scraper/scrapers/healthyBuddha.js
  * Provider  : Healthy Buddha (healthybuddha.in)
- * Platform  : OpenCart with custom megashop theme
+ * Platform  : OpenCart (server-rendered HTML)
+ * Method    : Fast HTTP + Cheerio (no heavy Chromium browser required)
  *
- * Confirmed DOM structure (May 2026, from live debug):
- *   96 products fully rendered in DOM on page load
- *   .product-block          → product card (96x)
- *   .product-col            → outer wrapper (96x)
- *   .name                   → product name div (96x)
- *   .name a                 → clickable name link with text
- *   .special-price          → sale/current price (96x)
- *   .price                  → price container (96x)
- *   .WebRupee               → rupee symbol span (106x)
- *   .product-img img        → product image
- *   .item-default           → card container (96x)
- *   body class              → "product-category-107_74" (vegetables=107, fruits=TBD)
- *
- * Price structure in OpenCart megashop:
- *   <div class="special-price">Rs. 45.00</div>   ← sale price (use this)
- *   OR <span class="WebRupee">₹</span> 45.00
- *
- * Products load SYNCHRONOUSLY in the HTML — no AJAX needed.
- * No login required. Playwright used only to render JS.
+ * Products load synchronously in OpenCart HTML.
+ * Using Cheerio avoids Playwright timeouts and reduces memory usage on VM.
  *
  * Run preview : node scraper/scrapers/healthyBuddha.js
  * Run + save  : node scraper/scrapers/healthyBuddha.js --save
@@ -34,7 +18,8 @@ require("dotenv").config({
   override: false,
 });
 
-const { chromium } = require("playwright");
+const axios = require("axios");
+const cheerio = require("cheerio");
 const {
   logger,
   withRetry,
@@ -45,7 +30,8 @@ const {
 } = require("../utils/index");
 
 const PROVIDER_ID = "HB";
-const TIMEOUT = parseInt(process.env.SCRAPE_TIMEOUT_MS) || 45_000;
+const BASE_URL = "https://healthybuddha.in";
+const TIMEOUT = parseInt(process.env.SCRAPE_TIMEOUT_MS) || 25_000;
 
 const CATEGORY_URLS = [
   {
@@ -70,183 +56,125 @@ const CATEGORY_URLS = [
   },
 ];
 
-// ── Extract products from rendered DOM ────────────────────────────────────────
-async function extractProducts(page, label) {
-  const products = await page.evaluate(() => {
-    const results = [];
-
-    // Primary selector confirmed from debug: .product-block
-    const cards = Array.from(
-      document.querySelectorAll(
-        ".product-block, .item-default, .resp-product-block",
-      ),
-    );
-
-    for (const card of cards) {
-      // ── Name ─────────────────────────────────────────────────────────────
-      const nameEl = card.querySelector(".name a, .name, h4 a, h4");
-      const name =
-        nameEl?.innerText?.trim() || nameEl?.getAttribute("title")?.trim();
-      if (!name || name.length < 2) continue;
-
-      // ── Price ─────────────────────────────────────────────────────────────
-      // OpenCart megashop: .special-price has the sale price
-      // Fall back to .price if no sale price
-      const specialPriceEl = card.querySelector(".special-price");
-      const priceEl = card.querySelector(".price");
-
-      let priceRaw = "";
-      if (specialPriceEl?.innerText?.trim()) {
-        priceRaw = specialPriceEl.innerText.trim();
-      } else if (priceEl?.innerText?.trim()) {
-        // .price may contain both old and new price — get last number
-        priceRaw = priceEl.innerText.trim();
-      }
-
-      if (!priceRaw) continue;
-
-      // ── Unit ──────────────────────────────────────────────────────────────
-      // HB includes weight in product name: "Tomato (500g)" or "Spinach - 1 Bunch"
-      const unitRegex =
-        /(\d+[\d.\-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?)/i;
-
-      const unitMatch = name.match(
-        /[\-–(]?\s*(\d+[\d.-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?)\s*[)–]?/i,
-      );
-      let unit = unitMatch ? unitMatch[1].trim() : null;
-
-      // Fallback 1: look for a weight/quantity element in the product card
-      if (!unit) {
-        const weightEl = card.querySelector(
-          '.weight, .product-weight, .option-value, [class*="weight"], [class*="qty"], [class*="unit"]',
-        );
-        if (weightEl?.innerText) {
-          const wMatch = weightEl.innerText.match(unitRegex);
-          if (wMatch) unit = wMatch[1].trim();
-        }
-      }
-
-      // Fallback 2: extract from price text (HB often shows "Rs 39\n- 250g")
-      if (!unit && priceRaw) {
-        const priceUnitMatch = priceRaw.match(unitRegex);
-        if (priceUnitMatch) unit = priceUnitMatch[1].trim();
-      }
-
-      // Clean name — remove the unit part in parentheses or after dash
-      const cleanName = name
-        .replace(
-          /\s*[\-–(]\s*\d+[\d.-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?\s*[)–]?/i,
-          "",
-        )
-        .trim();
-
-      // ── Availability ──────────────────────────────────────────────────────
-      // OpenCart shows "Out of Stock" button or disables add-to-cart
-      const oosBtn = card.querySelector(
-        '.button-cart[disabled], .out-of-stock, [class*="outofstock"], ' +
-          "button[disabled].button-cart",
-      );
-      // Also check if the price element shows "Out of Stock" text
-      const oosText = (card.innerText || "")
-        .toLowerCase()
-        .includes("out of stock");
-      const available = !oosBtn && !oosText;
-
-      // ── Image ─────────────────────────────────────────────────────────────
-      const imgEl = card.querySelector(
-        ".product-img img, .web-image-resp img, img",
-      );
-      const imgSrc =
-        imgEl?.src || imgEl?.dataset?.src || imgEl?.dataset?.lazySrc || null;
-
-      // ── Product URL ───────────────────────────────────────────────────────
-      const linkEl = card.querySelector(
-        '.name a, a[href*="healthybuddha.in/"]',
-      );
-      const productUrl = linkEl?.href || null;
-
-      results.push({
-        name: cleanName || name,
-        priceRaw,
-        unit,
-        available,
-        imageUrl: imgSrc,
-        productUrl,
-      });
-    }
-
-    return results;
-  });
-
-  logger.info(`[HB] ${label}: extracted ${products.length} products from DOM`);
-
-  return products
-    .filter((p) => p.name && p.priceRaw)
-    .map((p) =>
-      buildProduct({
-        providerId: PROVIDER_ID,
-        name: p.name,
-        price: p.priceRaw,
-        unit: p.unit,
-        available: p.available,
-        imageUrl: p.imageUrl,
-        productUrl: p.productUrl,
-      }),
-    );
-}
-
-// ── Scrape one category URL (handles pagination) ──────────────────────────────
-async function scrapeCategory(page, catInfo) {
+async function scrapeCategory(catInfo) {
   const allProducts = [];
   let pageNum = 1;
 
   while (true) {
     const url = pageNum === 1 ? catInfo.url : `${catInfo.url}?page=${pageNum}`;
+    logger.debug(`[HB] Fetching ${catInfo.label} p${pageNum}: ${url}`);
 
-    logger.info(`[HB] Loading ${catInfo.label} p${pageNum}: ${url}`);
+    const res = await axios.get(url, {
+      headers: {
+        "User-Agent": randomUserAgent(),
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-IN,en;q=0.9",
+      },
+      timeout: TIMEOUT,
+    });
 
-    try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: TIMEOUT });
-    } catch (e) {
-      // networkidle timeout is fine — products may already be in DOM
-      logger.debug(`[HB] goto note: ${e.message.slice(0, 80)}`);
-    }
-
-    // Wait for the confirmed selector .product-block
-    try {
-      await page.waitForSelector(".product-block, .item-default", {
-        timeout: 10_000,
-      });
-    } catch {
-      logger.warn(`[HB] ${catInfo.label} p${pageNum}: no .product-block found`);
+    const $ = cheerio.load(res.data);
+    const cards = $(".product-block, .item-default, .resp-product-block");
+    if (cards.length === 0) {
       break;
     }
 
-    // Small scroll to ensure lazy images don't block anything
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await sleep(500);
+    let pageProductCount = 0;
+    cards.each((_, el) => {
+      const card = $(el);
+      const nameEl = card.find(".name a, .name, h4 a, h4").first();
+      const name = nameEl.text().trim() || nameEl.attr("title")?.trim();
+      if (!name || name.length < 2) return;
 
-    const products = await extractProducts(
-      page,
-      `${catInfo.label} p${pageNum}`,
-    );
-    if (products.length === 0) break;
-    allProducts.push(...products);
+      const specialPriceEl = card.find(".special-price").first();
+      const priceEl = card.find(".price").first();
 
-    // Check for next page link
-    const hasNext = await page
-      .evaluate(() => {
-        const next = document.querySelector(
-          '.pagination .next a, a[rel="next"], ' +
-            ".pagination li:last-child a:not(.disabled)",
-        );
-        return !!next && next.offsetParent !== null;
-      })
-      .catch(() => false);
+      let priceRaw = "";
+      if (specialPriceEl.text().trim()) {
+        priceRaw = specialPriceEl.text().trim();
+      } else if (priceEl.text().trim()) {
+        priceRaw = priceEl.text().trim();
+      }
 
-    if (!hasNext) break;
+      if (!priceRaw) return;
+
+      // Unit extraction
+      const unitRegex =
+        /(\d+[\d.\-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?)/i;
+      const unitMatch = name.match(
+        /[\-–(]?\s*(\d+[\d.-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?)\s*[)–]?/i,
+      );
+      let unit = unitMatch ? unitMatch[1].trim() : null;
+
+      if (!unit) {
+        const weightEl = card
+          .find(
+            '.weight, .product-weight, .option-value, [class*="weight"], [class*="qty"], [class*="unit"]',
+          )
+          .first();
+        if (weightEl.length) {
+          const wMatch = weightEl.text().match(unitRegex);
+          if (wMatch) unit = wMatch[1].trim();
+        }
+      }
+
+      if (!unit && priceRaw) {
+        const pMatch = priceRaw.match(unitRegex);
+        if (pMatch) unit = pMatch[1].trim();
+      }
+
+      const cleanName = name
+        .replace(
+          /\s*\([^)]*(?:g|gm|kg|ml|l|piece|pcs|bunch|pack)[^)]*\)/gi,
+          "",
+        )
+        .replace(
+          /\s*[\-–]\s*\d+[\d.-]*\s*(?:g|gm|gms|gram|grams|kg|kgs|ml|l|pcs?|piece|pieces|bunch|bunches|no\.?|pack|strip)s?\s*$/i,
+          "",
+        )
+        .trim();
+
+      const oosBtn =
+        card.find(
+          '.button-cart[disabled], .out-of-stock, [class*="outofstock"], button[disabled].button-cart',
+        ).length > 0;
+      const oosText = card.text().toLowerCase().includes("out of stock");
+      const available = !oosBtn && !oosText;
+
+      const imgEl = card
+        .find(".product-img img, .web-image-resp img, img")
+        .first();
+      let imgSrc = imgEl.attr("src") || imgEl.attr("data-src") || null;
+      if (imgSrc && !imgSrc.startsWith("http")) {
+        imgSrc = `${BASE_URL}/${imgSrc.replace(/^\//, "")}`;
+      }
+
+      const linkEl = card.find('.name a, a[href*="healthybuddha.in/"]').first();
+      let productUrl = linkEl.attr("href") || null;
+
+      allProducts.push(
+        buildProduct({
+          providerId: PROVIDER_ID,
+          name: cleanName || name,
+          price: priceRaw,
+          unit,
+          available,
+          imageUrl: imgSrc,
+          productUrl,
+        }),
+      );
+      pageProductCount++;
+    });
+
+    // Next page check
+    const hasNext =
+      $(
+        '.pagination .next a, a[rel="next"], .pagination li:last-child a:not(.disabled)',
+      ).length > 0;
+    if (!hasNext || pageProductCount === 0) break;
     pageNum++;
-    await sleep(800);
+    sleep(300);
   }
 
   return allProducts;
@@ -254,75 +182,27 @@ async function scrapeCategory(page, catInfo) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function scrape() {
-  logger.info("[HB] Starting Healthy Buddha scrape (Playwright / OpenCart)");
+  logger.info("[HB] Starting Healthy Buddha scrape (Cheerio / HTTP)");
 
-  const browser = await chromium.launch({
-    headless: process.env.SCRAPE_HEADLESS !== "false",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: randomUserAgent(),
-    viewport: { width: 1440, height: 900 },
-    locale: "en-IN",
-    timezoneId: "Asia/Kolkata",
-    extraHTTPHeaders: { "Accept-Language": "en-IN,en;q=0.9" },
-  });
-
-  // Block fonts and analytics only — keep CSS/JS (needed for OpenCart to render)
-  await context.route("**/*", (route) => {
-    const type = route.request().resourceType();
-    const url = route.request().url();
-    if (type === "font") return route.abort();
-    if (
-      url.includes("google-analytics") ||
-      url.includes("googletagmanager") ||
-      url.includes("hotjar") ||
-      url.includes("facebook.net")
-    ) {
-      return route.abort();
+  const allProducts = [];
+  for (const cat of CATEGORY_URLS) {
+    try {
+      const products = await withRetry(() => scrapeCategory(cat), {
+        retries: 2,
+        delayMs: 2000,
+        label: `HB ${cat.label}`,
+      });
+      allProducts.push(...products);
+      logger.info(`[HB] ${cat.label}: ${products.length} products`);
+      await sleep(300);
+    } catch (err) {
+      logger.error(`[HB] Failed: ${cat.label}`, { error: err.message });
     }
-    return route.continue();
-  });
-
-  const page = await context.newPage();
-
-  try {
-    // Warm up — visit homepage first to establish session cookies
-    logger.info("[HB] Warming up session...");
-    await page.goto("https://healthybuddha.in", {
-      waitUntil: "domcontentloaded",
-      timeout: TIMEOUT,
-    });
-    await sleep(1500);
-
-    const allProducts = [];
-    for (const cat of CATEGORY_URLS) {
-      try {
-        const products = await withRetry(() => scrapeCategory(page, cat), {
-          retries: 2,
-          delayMs: 3000,
-          label: `HB ${cat.label}`,
-        });
-        allProducts.push(...products);
-        logger.info(`[HB] ${cat.label}: ${products.length} products`);
-        await sleep(1000);
-      } catch (err) {
-        logger.error(`[HB] Failed: ${cat.label}`, { error: err.message });
-      }
-    }
-
-    const deduped = deduplicateProducts(allProducts);
-    logger.info(`[HB] Total after dedup: ${deduped.length} products`);
-    return deduped;
-  } finally {
-    await context.close();
-    await browser.close();
   }
+
+  const deduped = deduplicateProducts(allProducts);
+  logger.info(`[HB] Total after dedup: ${deduped.length} products`);
+  return deduped;
 }
 
 // ── Standalone runner ─────────────────────────────────────────────────────────
