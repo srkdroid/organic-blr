@@ -33,6 +33,21 @@ const PROVIDER_ID = "HB";
 const BASE_URL = "https://healthybuddha.in";
 const TIMEOUT = parseInt(process.env.SCRAPE_TIMEOUT_MS) || 25_000;
 
+// ── ScraperAPI proxy support ───────────────────────────────────────────────────
+// Set SCRAPERAPI_KEY + PROXY_PROVIDERS=...,HB in scraper/.env.scraper on the VM
+// to route requests through ScraperAPI and bypass datacenter 403 blocks.
+const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY || "";
+const PROXY_PROVIDERS = (process.env.PROXY_PROVIDERS || "")
+  .split(",")
+  .map((s) => s.trim().toUpperCase())
+  .filter(Boolean);
+const USE_PROXY = !!(SCRAPERAPI_KEY && PROXY_PROVIDERS.includes("HB"));
+
+function proxyUrl(targetUrl) {
+  if (!USE_PROXY) return targetUrl;
+  return `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}`;
+}
+
 const CATEGORY_URLS = [
   {
     url: "https://healthybuddha.in/fruits-vegetables/vegetables",
@@ -62,16 +77,17 @@ async function scrapeCategory(catInfo) {
 
   while (true) {
     const url = pageNum === 1 ? catInfo.url : `${catInfo.url}?page=${pageNum}`;
-    logger.debug(`[HB] Fetching ${catInfo.label} p${pageNum}: ${url}`);
+    const targetUrl = proxyUrl(url);
+    logger.debug(`[HB] Fetching ${catInfo.label} p${pageNum}: ${url}${USE_PROXY ? " (via proxy)" : ""}`);
 
-    const res = await axios.get(url, {
+    const res = await axios.get(targetUrl, {
       headers: {
         "User-Agent": randomUserAgent(),
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-IN,en;q=0.9",
       },
-      timeout: TIMEOUT,
+      timeout: USE_PROXY ? 60_000 : TIMEOUT,
     });
 
     const $ = cheerio.load(res.data);
@@ -182,7 +198,9 @@ async function scrapeCategory(catInfo) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function scrape() {
-  logger.info("[HB] Starting Healthy Buddha scrape (Cheerio / HTTP)");
+  logger.info(
+    `[HB] Starting Healthy Buddha scrape (Cheerio / HTTP)${USE_PROXY ? " via ScraperAPI proxy" : ""}`,
+  );
 
   const allProducts = [];
   for (const cat of CATEGORY_URLS) {
