@@ -8,7 +8,7 @@ import { FilterBar }    from './FilterBar'
 import { StatusBar }    from './StatusBar'
 import { ScrapeButton } from './ScrapeButton'
 
-export function PriceApp({ initialItems = [], initialProviders = [] }) {
+export function PriceApp({ initialItems = [], initialProviders = [], currentUser = null }) {
   const [items,     setItems]     = useState(initialItems)
   const [providers, setProviders] = useState(initialProviders)
   const [cart,      setCart]      = useState(new Map())   // master_item_id → item
@@ -92,6 +92,16 @@ export function PriceApp({ initialItems = [], initialProviders = [] }) {
 
           {/* Header actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {currentUser?.role === 'admin' && (
+              <a
+                href="/admin"
+                className="text-xs px-2 py-1 rounded-lg border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors font-medium flex items-center gap-1"
+                title="Admin Console"
+              >
+                ⚙️ Admin
+              </a>
+            )}
+
             <ScrapeButton onComplete={refresh} />
             <button
               onClick={refresh}
@@ -117,6 +127,37 @@ export function PriceApp({ initialItems = [], initialProviders = [] }) {
                 </span>
               )}
             </button>
+
+            {/* User profile / Sign out */}
+            {currentUser && (
+              <div className="flex items-center gap-1.5 pl-1.5 border-l border-gray-200">
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name || 'User'}
+                    className="w-7 h-7 rounded-full object-cover border border-gray-200"
+                    title={currentUser.email}
+                  />
+                ) : (
+                  <div
+                    className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center border border-emerald-200"
+                    title={currentUser.email}
+                  >
+                    {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <form action="/auth/signout" method="POST">
+                  <button
+                    type="submit"
+                    aria-label="Sign out"
+                    title="Sign out"
+                    className="text-xs text-gray-400 hover:text-red-600 p-1 transition-colors"
+                  >
+                    ↪
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       </header>

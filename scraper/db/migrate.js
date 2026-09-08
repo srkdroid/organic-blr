@@ -155,6 +155,95 @@ DROP TRIGGER IF EXISTS trg_coalesce_price_history_unit ON price_history;
 CREATE TRIGGER trg_coalesce_price_history_unit
 BEFORE INSERT ON price_history
 FOR EACH ROW EXECUTE FUNCTION coalesce_price_history_unit();
+
+-- Auth & Analytics schema
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  full_name TEXT,
+  avatar_url TEXT,
+  role TEXT NOT NULL DEFAULT 'user',
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_sign_in_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_enabled ON user_profiles(is_enabled);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, email, full_name, avatar_url, is_enabled)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', NEW.email),
+    NEW.raw_user_meta_data->>'avatar_url',
+    TRUE
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    last_sign_in_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+CREATE TABLE IF NOT EXISTS page_visits (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  path TEXT NOT NULL,
+  user_agent TEXT,
+  visited_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_visits_visited_at ON page_visits(visited_at DESC);
+CREATE INDEX IF NOT EXISTS idx_page_visits_user_id ON page_visits(user_id);
+
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE page_visits ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+CREATE POLICY "Users can view own profile"
+  ON user_profiles FOR SELECT
+  TO authenticated
+  USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can view all profiles" ON user_profiles;
+CREATE POLICY "Admins can view all profiles"
+  ON user_profiles FOR SELECT
+  TO authenticated
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can update all profiles" ON user_profiles;
+CREATE POLICY "Admins can update all profiles"
+  ON user_profiles FOR UPDATE
+  TO authenticated
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Authenticated users can record visits" ON page_visits;
+CREATE POLICY "Authenticated users can record visits"
+  ON page_visits FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+
+DROP POLICY IF EXISTS "Admins can view page visits" ON page_visits;
+CREATE POLICY "Admins can view page visits"
+  ON page_visits FOR SELECT
+  TO authenticated
+  USING (public.is_admin());
 `;
 
 async function migrate() {
